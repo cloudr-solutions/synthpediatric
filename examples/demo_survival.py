@@ -59,6 +59,8 @@ def main() -> int:
     ap.add_argument("-n", type=int, default=20000)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--out", default="out/km_curves.csv")
+    ap.add_argument("--plot", default="out/km_curves.png",
+                    help="path for a KM plot (PNG); requires matplotlib")
     args = ap.parse_args()
 
     print("1. Generate synthetic CTC cohort from published NCCR metadata")
@@ -104,7 +106,47 @@ def main() -> int:
             for t, s in zip(km.time, km.survival):
                 w.writerow([group, f"{t:.3f}", f"{s:.6f}"])
     print(f"\n5. Wrote KM curves -> {out}")
+
+    try:
+        _plot_km(curves, args.plot)
+        print(f"6. Wrote KM plot   -> {args.plot}")
+    except ImportError:
+        print("6. Plot skipped (matplotlib not installed: pip install matplotlib)")
     return 0
+
+
+def _plot_km(curves, path: str) -> None:
+    """Render Kaplan-Meier step curves for a representative set of ICCC groups."""
+    from pathlib import Path
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    representative = ["V", "II", "I", "III", "IX", "VII"]  # best -> worst spread
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for prefix in representative:
+        for group, km in curves.items():
+            label = str(group)
+            if label.split(".", 1)[0].strip() != prefix:
+                continue
+            tail = label.split(".", 1)[1].strip().split()[0].rstrip(",") if "." in label else ""
+            ax.step(km.time, km.survival, where="post", linewidth=1.8,
+                    label=f"{prefix} {tail}".strip())
+            break
+    ax.set_xlim(0, HORIZON)
+    ax.set_ylim(0, 1.02)
+    ax.set_xlabel("Months from diagnosis")
+    ax.set_ylabel("Survival probability")
+    ax.set_title("Kaplan-Meier by ICCC group\n"
+                 "(synthetic CTC cohort - illustrative survival times)")
+    ax.grid(alpha=0.3)
+    ax.legend(title="ICCC group", loc="lower left", fontsize=9)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
 
 
 if __name__ == "__main__":

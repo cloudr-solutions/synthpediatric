@@ -28,6 +28,10 @@ joints = [
     "sdmetrics>=0.14",
     "lifelines>=0.27",
 ]
+# Plotting (e.g., Kaplan-Meier curves in the survival demo).
+viz = [
+    "matplotlib>=3.6",
+]
 # Development: linting and tests.
 dev = [
     "pytest>=7",
