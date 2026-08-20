@@ -23,7 +23,7 @@ import argparse
 
 import numpy as np
 
-from synthpediatric import generate, kaplan_meier_by_group
+from synthpediatric import generate, kaplan_meier_by_group, write_survival_html
 from synthpediatric.constraints import RuleSet
 from synthpediatric.nccr_rdf import NCCR_INSTANCES_URL, build_dictionary, load_graph
 
@@ -49,42 +49,6 @@ def simulate_survival(iccc: np.ndarray, rng: np.random.Generator):
     return months, event
 
 
-def write_interactive_km(curves, path: str, title: str) -> None:
-    import plotly.graph_objects as go
-
-    fig = go.Figure()
-    # Order groups best -> worst 5-year survival for a tidy legend.
-    for group, km in sorted(curves.items(), key=lambda kv: -kv[1].survival_at(60.0)):
-        fig.add_trace(
-            go.Scatter(
-                x=km.time,
-                y=km.survival,
-                mode="lines",
-                line_shape="hv",  # proper Kaplan-Meier step
-                name=str(group)[:44],
-                customdata=km.at_risk,
-                hovertemplate=(
-                    "<b>%{fullData.name}</b><br>"
-                    "Month %{x:.0f}<br>"
-                    "Survival %{y:.3f}<br>"
-                    "At risk %{customdata}<extra></extra>"
-                ),
-            )
-        )
-    fig.update_layout(
-        title=title,
-        xaxis_title="Months since diagnosis",
-        yaxis_title="Survival probability",
-        xaxis_range=[0, HORIZON],
-        yaxis_range=[0, 1.02],
-        hovermode="closest",
-        legend_title_text="ICCC group (click to toggle)",
-        template="plotly_white",
-        height=620,
-    )
-    fig.write_html(path, include_plotlyjs=True, full_html=True)
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--metadata", default=NCCR_INSTANCES_URL)
@@ -101,10 +65,11 @@ def main() -> int:
     cohort["months"], cohort["event"] = simulate_survival(cohort["icccMajor"].to_numpy(), rng)
 
     curves = kaplan_meier_by_group(cohort, "months", "event", "icccMajor")
-    write_interactive_km(
+    write_survival_html(
         curves,
         args.out,
         title=f"Kaplan-Meier by ICCC group (synthetic CTC cohort, n={len(cohort):,})",
+        horizon=HORIZON,
     )
     print(f"Wrote interactive KM -> {args.out}")
     print("Open in a browser: hover for survival + at-risk, click legend to toggle, drag to zoom.")

@@ -26,6 +26,7 @@ from .constraints import AllowedValuesConstraint, Constraint, RuleSet
 from .dictionary import DataDictionary, VariableMarginal
 from .evaluate import PROVENANCE_STATEMENT, marginal_fidelity, overall_score
 from .generate import GenerationResult, generate
+from .render import survival_to_figure, write_survival_html
 
 __version__ = "0.0.1"
 
@@ -63,5 +64,7 @@ __all__ = [
     "KMResult",
     "kaplan_meier_by_group",
     "logrank_test",
+    "survival_to_figure",
+    "write_survival_html",
     "__version__",
 ]
