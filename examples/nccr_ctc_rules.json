@@ -1,0 +1,32 @@
+{
+  "max_iterations": 10,
+  "constraints": [
+    {
+      "type": "allowed_values",
+      "name": "retinoblastoma_is_early_childhood",
+      "trigger_col": "iccc_category",
+      "trigger_values": ["V Retinoblastoma"],
+      "target_col": "age_group",
+      "allowed_values": ["00-04", "05-09"],
+      "description": "Retinoblastoma occurs almost exclusively in early childhood."
+    },
+    {
+      "type": "allowed_values",
+      "name": "neuroblastoma_is_early_childhood",
+      "trigger_col": "iccc_category",
+      "trigger_values": ["IV Neuroblastoma"],
+      "target_col": "age_group",
+      "allowed_values": ["00-04", "05-09"],
+      "description": "Neuroblastoma is overwhelmingly a disease of infants and young children."
+    },
+    {
+      "type": "allowed_values",
+      "name": "renal_wilms_is_childhood",
+      "trigger_col": "iccc_category",
+      "trigger_values": ["VI Renal"],
+      "target_col": "age_group",
+      "allowed_values": ["00-04", "05-09", "10-14"],
+      "description": "Renal tumors (predominantly Wilms) concentrate in childhood."
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "name": "NCCR CTC (illustrative example)",
+  "source": "Consolidated Tumor Case - structure analog",
+  "version": "example-2026-07",
+  "n_records": 1474368,
+  "notes": "Illustrative marginals dictionary for demos and tests. ICCC major-category counts are the real public NCCR figures from the NCCR Data Platform About page; the other variables use plausible placeholder frequencies until a real dictionary export is loaded. Not real patient data.",
+  "variables": [
+    {
+      "name": "iccc_category",
+      "label": "ICCC major category",
+      "type": "categorical",
+      "values": [
+        {"value": "I Leukemias", "count": 111533},
+        {"value": "II Lymphomas", "count": 144779},
+        {"value": "III CNS", "count": 164378},
+        {"value": "IV Neuroblastoma", "count": 11397},
+        {"value": "V Retinoblastoma", "count": 3969},
+        {"value": "VI Renal", "count": 36198},
+        {"value": "VII Hepatic", "count": 9571},
+        {"value": "VIII Bone", "count": 20116},
+        {"value": "IX Soft tissue", "count": 58410},
+        {"value": "X Germ cell", "count": 118412},
+        {"value": "XI Epithelial/melanoma", "count": 655380},
+        {"value": "XII Other", "count": 14392},
+        {"value": "Not classified", "count": 125833}
+      ]
+    },
+    {
+      "name": "sex",
+      "label": "Sex",
+      "type": "categorical",
+      "values": [
+        {"value": "Male", "count": 796000},
+        {"value": "Female", "count": 678368}
+      ]
+    },
+    {
+      "name": "age_group",
+      "label": "Age at diagnosis (5-year group)",
+      "type": "categorical",
+      "values": [
+        {"value": "00-04", "count": 180000},
+        {"value": "05-09", "count": 120000},
+        {"value": "10-14", "count": 120000},
+        {"value": "15-19", "count": 170000},
+        {"value": "20-24", "count": 200000},
+        {"value": "25-29", "count": 210000},
+        {"value": "30-34", "count": 230000},
+        {"value": "35-39", "count": 244368}
+      ]
+    },
+    {
+      "name": "diagnosis_year_group",
+      "label": "Year of diagnosis (group)",
+      "type": "categorical",
+      "values": [
+        {"value": "2001-2005", "count": 300000},
+        {"value": "2006-2010", "count": 320000},
+        {"value": "2011-2015", "count": 340000},
+        {"value": "2016-2020", "count": 360000},
+        {"value": "2021-2022", "count": 154368}
+      ]
+    },
+    {
+      "name": "vital_status",
+      "label": "Vital status at last follow-up",
+      "type": "categorical",
+      "values": [
+        {"value": "Alive", "count": 1250000},
+        {"value": "Dead", "count": 224368}
+      ]
+    }
+  ]
+}

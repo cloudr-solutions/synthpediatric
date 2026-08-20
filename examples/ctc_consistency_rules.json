@@ -1,0 +1,69 @@
+{
+  "_comment": "Illustrative, extensible clinical consistency rules for synthetic NCCR CTC (registry) cohorts generated from published marginals. These are STARTER rules meant to be reviewed and expanded with clinician input at the Jamboree. They encode two well-known relationships: (1) prostate-specific markers do not apply to female patients, and (2) retinoblastoma is a cancer of early childhood. Note: prostate-marker record counts in the NCCR metadata are conditional on the prostate-cancer subpopulation, so independent marginal sampling otherwise assigns a Gleason/PSA value to every synthetic record.",
+  "max_iterations": 5,
+  "constraints": [
+    {
+      "type": "allowed_values",
+      "name": "gleason_clinical_score_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["Female"],
+      "target_col": "gleasonScoreClinicalRecode",
+      "allowed_values": ["Not applicable"],
+      "description": "Gleason score (prostate) does not apply to female patients."
+    },
+    {
+      "type": "allowed_values",
+      "name": "gleason_pathologic_score_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["Female"],
+      "target_col": "gleasonScorePathologicRecode",
+      "allowed_values": ["Not applicable"],
+      "description": "Gleason score (prostate) does not apply to female patients."
+    },
+    {
+      "type": "allowed_values",
+      "name": "gleason_clinical_pattern_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["Female"],
+      "target_col": "gleasonPatternClinicalRecode",
+      "allowed_values": ["Not applicable"],
+      "description": "Gleason pattern (prostate) does not apply to female patients."
+    },
+    {
+      "type": "allowed_values",
+      "name": "gleason_pathologic_pattern_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["Female"],
+      "target_col": "gleasonPatternPathologicRecode",
+      "allowed_values": ["Not applicable"],
+      "description": "Gleason pattern (prostate) does not apply to female patients."
+    },
+    {
+      "type": "allowed_values",
+      "name": "gleason_tertiary_pattern_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["Female"],
+      "target_col": "gleasonTertiaryPattern",
+      "allowed_values": ["Not applicable"],
+      "description": "Gleason tertiary pattern (prostate) does not apply to female patients."
+    },
+    {
+      "type": "allowed_values",
+      "name": "psa_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["Female"],
+      "target_col": "psaLabValueRecode",
+      "allowed_values": ["Not applicable"],
+      "description": "PSA (prostate-specific antigen) does not apply to female patients."
+    },
+    {
+      "type": "allowed_values",
+      "name": "retinoblastoma_is_early_childhood",
+      "trigger_col": "icccMajor",
+      "trigger_values": ["V. Retinoblastoma"],
+      "target_col": "ageRecode19Groups",
+      "allowed_values": ["00 years", "01-04 years", "05-09 years"],
+      "description": "Retinoblastoma occurs almost exclusively in early childhood (typically under 5)."
+    }
+  ]
+}

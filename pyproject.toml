@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synthpediatric"
+version = "0.0.1"
+description = "Generate privacy-safe synthetic pediatric/AYA cancer cohorts from published registry marginals."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "CloudR" }]
+keywords = ["synthetic-data", "cancer-registry", "nccr", "ccdi", "pediatric-oncology"]
+dependencies = [
+    "numpy>=1.24,<3",
+    "pandas>=2.0,<3",
+    "pyarrow>=14",
+]
+
+[project.optional-dependencies]
+# Load the real NCCR Data Platform metadata (RDF/Turtle).
+rdf = [
+    "rdflib>=6.0",
+]
+# Phase 1: joint-structure modeling + richer fidelity metrics.
+joints = [
+    "sdv>=1.9",
+    "sdmetrics>=0.14",
+    "lifelines>=0.27",
+]
+# Development: linting and tests.
+dev = [
+    "pytest>=7",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+synthpediatric = "synthpediatric.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
