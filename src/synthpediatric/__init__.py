@@ -13,6 +13,7 @@ proxy such as SEER) calibrated to these marginals, which is what makes the
 multivariate structure realistic.
 """
 
+from .analyze import KMResult, kaplan_meier, kaplan_meier_by_group, logrank_test
 from .calibrate import (
     CalibrationResult,
     JointDistribution,
@@ -58,5 +59,9 @@ __all__ = [
     "calibrate_to_dictionary",
     "targets_from_dictionary",
     "generate_calibrated",
+    "kaplan_meier",
+    "KMResult",
+    "kaplan_meier_by_group",
+    "logrank_test",
     "__version__",
 ]
