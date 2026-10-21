@@ -27,6 +27,13 @@ from .dictionary import DataDictionary, VariableMarginal
 from .evaluate import PROVENANCE_STATEMENT, marginal_fidelity, overall_score
 from .generate import GenerationResult, generate
 from .render import survival_to_figure, write_survival_html
+from .resample import (
+    oversample_rare,
+    oversample_values,
+    rare_categories,
+    reweight_variable,
+)
+from .survival_gen import sample_survival
 
 __version__ = "0.0.1"
 
@@ -66,5 +73,10 @@ __all__ = [
     "logrank_test",
     "survival_to_figure",
     "write_survival_html",
+    "sample_survival",
+    "reweight_variable",
+    "oversample_values",
+    "oversample_rare",
+    "rare_categories",
     "__version__",
 ]

@@ -21,13 +21,12 @@ from __future__ import annotations
 
 import argparse
 
-import numpy as np
-
-from synthpediatric import generate, kaplan_meier_by_group, write_survival_html
+from synthpediatric import generate, kaplan_meier_by_group, sample_survival, write_survival_html
 from synthpediatric.constraints import RuleSet
 from synthpediatric.nccr_rdf import NCCR_INSTANCES_URL, build_dictionary, load_graph
 
 # Illustrative 5-year overall survival by ICCC major group (demonstration only).
+# At the Jamboree this spec is supplied by the Input team from SEER*Stat survival stats.
 ICCC_5YR = {
     "I": 0.88, "II": 0.90, "III": 0.75, "IV": 0.80, "V": 0.97, "VI": 0.90,
     "VII": 0.70, "VIII": 0.70, "IX": 0.72, "X": 0.92, "XI": 0.93, "XII": 0.75,
@@ -36,17 +35,13 @@ DEFAULT_5YR = 0.80
 HORIZON = 120.0
 
 
-def simulate_survival(iccc: np.ndarray, rng: np.random.Generator):
-    months = np.empty(iccc.size)
-    event = np.zeros(iccc.size, dtype=int)
-    for i, label in enumerate(iccc):
-        s5 = ICCC_5YR.get(str(label).split(".", 1)[0].strip(), DEFAULT_5YR)
-        rate = -np.log(s5) / 60.0
-        t_event = rng.exponential(1.0 / rate) if rate > 0 else np.inf
-        t_cens = rng.uniform(12.0, HORIZON)
-        months[i] = min(t_event, t_cens)
-        event[i] = int(t_event <= t_cens)
-    return months, event
+def survival_specs(iccc_values) -> dict:
+    """Map each present icccMajor label to a 5-year-survival spec via its ICCC prefix."""
+    specs = {}
+    for label in set(map(str, iccc_values)):
+        prefix = label.split(".", 1)[0].strip()
+        specs[label] = ICCC_5YR.get(prefix, DEFAULT_5YR)
+    return specs
 
 
 def main() -> int:
@@ -61,8 +56,10 @@ def main() -> int:
     rules = RuleSet.from_json("examples/ctc_consistency_rules.json")
     cohort = generate(d, n=args.n, rng=args.seed, ruleset=rules).data
 
-    rng = np.random.default_rng(args.seed)
-    cohort["months"], cohort["event"] = simulate_survival(cohort["icccMajor"].to_numpy(), rng)
+    iccc = cohort["icccMajor"].to_numpy()
+    cohort["months"], cohort["event"] = sample_survival(
+        iccc, survival_specs(iccc), rng=args.seed, horizon_months=HORIZON
+    )
 
     curves = kaplan_meier_by_group(cohort, "months", "event", "icccMajor")
     write_survival_html(
