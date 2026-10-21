@@ -26,6 +26,14 @@ from .constraints import AllowedValuesConstraint, Constraint, RuleSet
 from .dictionary import DataDictionary, VariableMarginal
 from .evaluate import PROVENANCE_STATEMENT, marginal_fidelity, overall_score
 from .generate import GenerationResult, generate
+from .inputs import (
+    CohortFilter,
+    CohortSpec,
+    apply_cohort,
+    cohort_from_dict,
+    dictionary_from_frequencies,
+    override_marginals,
+)
 from .render import survival_to_figure, write_survival_html
 from .resample import (
     oversample_rare,
@@ -74,6 +82,12 @@ __all__ = [
     "survival_to_figure",
     "write_survival_html",
     "sample_survival",
+    "dictionary_from_frequencies",
+    "override_marginals",
+    "apply_cohort",
+    "cohort_from_dict",
+    "CohortSpec",
+    "CohortFilter",
     "reweight_variable",
     "oversample_values",
     "oversample_rare",

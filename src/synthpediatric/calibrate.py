@@ -82,6 +82,28 @@ class JointDistribution:
 
         return cls(dimensions=columns, categories=categories, table=table)
 
+    @classmethod
+    def from_counts(
+        cls, counts: "Mapping[tuple, float]", dimensions: Sequence[str]
+    ) -> "JointDistribution":
+        """Build a joint table from a cross-tabulation (no microdata needed).
+
+        ``counts`` maps a tuple of category values (in ``dimensions`` order) to a
+        count or proportion. This lets a SEER*Stat cross-tab seed IPF calibration.
+        """
+        dims = list(dimensions)
+        categories = {
+            d: sorted({key[i] for key in counts}, key=str) for i, d in enumerate(dims)
+        }
+        index_of = {d: {v: j for j, v in enumerate(categories[d])} for d in dims}
+        table = np.zeros(tuple(len(categories[d]) for d in dims), dtype=float)
+        for key, value in counts.items():
+            if len(key) != len(dims):
+                raise ValueError(f"key {key!r} does not match dimensions {dims}")
+            idx = tuple(index_of[d][key[i]] for i, d in enumerate(dims))
+            table[idx] = float(value)
+        return cls(dimensions=dims, categories=categories, table=table)
+
     # ---- queries --------------------------------------------------------
 
     @property
