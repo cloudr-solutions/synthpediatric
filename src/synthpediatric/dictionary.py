@@ -32,6 +32,7 @@ class VariableMarginal:
     vtype: str
     categories: List[Any]
     weights: np.ndarray = field(repr=False)
+    frequency_source: str = "published"  # "published" | "uniform" (no published freqs)
 
     def __post_init__(self) -> None:
         self.weights = np.asarray(self.weights, dtype=float)

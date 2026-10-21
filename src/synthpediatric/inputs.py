@@ -179,7 +179,10 @@ def _filter_variable(vm: VariableMarginal, flt: CohortFilter) -> VariableMargina
         raise ValueError(f"filter on '{flt.variable}' removed all categories")
     cats = [c for c, k in zip(vm.categories, keep) if k]
     weights = vm.weights[keep]
-    return VariableMarginal(vm.name, vm.label, vm.vtype, cats, weights)
+    return VariableMarginal(
+        vm.name, vm.label, vm.vtype, cats, weights,
+        frequency_source=getattr(vm, "frequency_source", "published"),
+    )
 
 
 def apply_cohort(dictionary: DataDictionary, cohort: CohortSpec) -> DataDictionary:

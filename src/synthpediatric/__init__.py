@@ -22,6 +22,7 @@ from .calibrate import (
     raking_ipf,
     targets_from_dictionary,
 )
+from .conformance import assert_conformant, conformance_report, coverage_report
 from .constraints import AllowedValuesConstraint, Constraint, RuleSet
 from .dictionary import DataDictionary, VariableMarginal
 from .evaluate import PROVENANCE_STATEMENT, marginal_fidelity, overall_score
@@ -88,6 +89,9 @@ __all__ = [
     "cohort_from_dict",
     "CohortSpec",
     "CohortFilter",
+    "coverage_report",
+    "conformance_report",
+    "assert_conformant",
     "reweight_variable",
     "oversample_values",
     "oversample_rare",

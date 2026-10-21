@@ -39,6 +39,7 @@ def reweight_variable(
         vtype=vm.vtype,
         categories=list(vm.categories),
         weights=new_weights,
+        frequency_source=getattr(vm, "frequency_source", "published"),
     )
     new_vars = dict(dictionary.variables)
     new_vars[variable] = new_var
