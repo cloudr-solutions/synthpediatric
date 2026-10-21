@@ -1,0 +1,22 @@
+{
+  "name": "CTC synthetic cohort (demo)",
+  "metadata": "remote",
+  "source": "CTC",
+  "n": 20000,
+  "seed": 42,
+  "value_mode": "label",
+  "no_frequency": "uniform",
+  "rules": "examples/ctc_consistency_rules.json",
+  "survival": {
+    "group_col": "icccMajor",
+    "horizon_months": 120,
+    "specs": {
+      "V. Retinoblastoma": {"s5": 0.97},
+      "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases": {"s5": 0.88},
+      "II. Lymphomas and reticuloendothelial neoplasms": {"s5": 0.90},
+      "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms": {"s5": 0.75},
+      "VII. Hepatic Tumors": {"s5": 0.70}
+    }
+  },
+  "outputs": {"dir": "out/recipe_ctc"}
+}

@@ -35,6 +35,7 @@ from .inputs import (
     dictionary_from_frequencies,
     override_marginals,
 )
+from .recipe import run_recipe, write_run
 from .render import survival_to_figure, write_survival_html
 from .resample import (
     oversample_rare,
@@ -96,5 +97,7 @@ __all__ = [
     "oversample_values",
     "oversample_rare",
     "rare_categories",
+    "run_recipe",
+    "write_run",
     "__version__",
 ]
