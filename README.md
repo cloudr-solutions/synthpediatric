@@ -38,6 +38,7 @@ published metadata ──(source adapter)──▶ marginals dictionary ──�
 ```bash
 pip install -e .            # core: numpy, pandas, pyarrow (Python 3.9+)
 pip install -e ".[rdf]"     # + rdflib, for the NCCR RDF adapter
+pip install -e ".[yaml]"    # + PyYAML, to run YAML configs (JSON configs need nothing extra)
 ```
 
 ## Quickstart — any source (JSON dictionary)
@@ -94,6 +95,40 @@ synthpediatric evaluate remote --source CTC out/ctc.parquet
 NCCR sources: `CTC` (registry), `ABM`, `CCDI`, `COG`, `MCD`, `MCE`, `MCP`, `PHARM`,
 `RO`. Add `--value-mode code` to use raw code notations instead of labels. For repeat
 runs, download `nccr_instances.ttl` once and pass its path instead of `remote`.
+
+## Config-driven runs (`synthpediatric run`)
+
+A run can be described in one YAML (or JSON) file: the metadata source, a **profile**,
+and the parameters of each **rule** (marginals, overrides, cohort, oversample, joints,
+constraints, survival). The profile is the "how many rules" dial: `marginals_only`,
+`standard` or `full`. Individual rules can be switched with `rules: {name: true|false}`.
+
+```yaml
+name: CTC demo
+metadata: examples/nccr_ctc_dictionary.json   # or: remote, with source: CTC
+n: 5000
+seed: 42
+profile: standard            # marginals_only | standard | full
+targets:
+  marginals:
+    sex: {Male: 0.52, Female: 0.48}
+constraints:
+  file: examples/nccr_ctc_rules.json
+no_frequency: uniform        # variables with no published frequency: uniform | nullify | suppress
+```
+
+```bash
+synthpediatric run examples/profiles/standard.yaml --out-dir out/standard
+synthpediatric run examples/recipe_ctc.yaml        # needs network (metadata: remote)
+```
+
+The run writes the cohort plus `coverage.csv`, `conformance.csv`, `fidelity.csv`,
+`dictionary.json` and `manifest.json`. The manifest records the resolved profile and rule
+list, the applied oversampling factors, the config and its hash, so a run can be
+reproduced from it alone. Existing JSON recipes keep working. The full specification,
+rule order and precedence are in [docs/config-and-rules.md](docs/config-and-rules.md);
+profile examples are in `examples/profiles/`. To write your own, start from the tested
+recipes in the [cookbook](docs/cookbook.md).
 
 ## Why marginals are not enough (stated up front)
 
