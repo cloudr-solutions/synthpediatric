@@ -1,0 +1,11 @@
+# Recipe f (1 of 3): variables with no published frequency -> uniform (the default). Offline.
+# Run:  synthpediatric run examples/cookbook/f_no_frequency_uniform.yaml
+# Same file as the nullify and suppress versions; only `no_frequency` and outputs differ.
+name: Cookbook f - no_frequency uniform
+metadata: examples/cookbook/mini_nccr.ttl   # a local NCCR metadata file
+source: CTC
+n: 1000
+seed: 1
+profile: marginals_only
+no_frequency: uniform       # race is sampled uniformly over White / Black / Asian
+outputs: {dir: out/cookbook/f_uniform}

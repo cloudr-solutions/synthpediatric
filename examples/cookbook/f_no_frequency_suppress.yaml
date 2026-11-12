@@ -1,0 +1,10 @@
+# Recipe f (3 of 3): variables with no published frequency -> suppress. Offline.
+# Run:  synthpediatric run examples/cookbook/f_no_frequency_suppress.yaml
+name: Cookbook f - no_frequency suppress
+metadata: examples/cookbook/mini_nccr.ttl
+source: CTC
+n: 1000
+seed: 1
+profile: marginals_only
+no_frequency: suppress      # race is dropped; the cohort has only the sex column
+outputs: {dir: out/cookbook/f_suppress}

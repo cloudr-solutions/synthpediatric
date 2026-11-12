@@ -1,0 +1,19 @@
+# Recipe d: survival times by group. Offline.
+# Run:  synthpediatric run examples/cookbook/d_survival_by_group.yaml
+# survival is only on in the `full` profile.
+name: Cookbook d - survival by ICCC category
+metadata: examples/nccr_ctc_dictionary.json
+n: 20000
+seed: 1
+profile: full
+targets:
+  survival:
+    group_col: iccc_category
+    horizon_months: 120
+    specs:
+      "V Retinoblastoma": {s5: 0.97}        # 5-year survival
+      "I Leukemias": {median_months: 150}   # median survival, constant hazard
+      "VII Hepatic": {points: {12: 0.90, 60: 0.70, 120: 0.60}}   # survival at given months
+    # Groups not listed get 5-year survival 0.80 (built in). A bare number such as
+    # "III CNS": 0.65 means 5-year survival.
+outputs: {dir: out/cookbook/d}

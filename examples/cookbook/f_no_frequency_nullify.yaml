@@ -1,0 +1,10 @@
+# Recipe f (2 of 3): variables with no published frequency -> nullify. Offline.
+# Run:  synthpediatric run examples/cookbook/f_no_frequency_nullify.yaml
+name: Cookbook f - no_frequency nullify
+metadata: examples/cookbook/mini_nccr.ttl
+source: CTC
+n: 1000
+seed: 1
+profile: marginals_only
+no_frequency: nullify       # race stays in the schema but every value is blank
+outputs: {dir: out/cookbook/f_nullify}

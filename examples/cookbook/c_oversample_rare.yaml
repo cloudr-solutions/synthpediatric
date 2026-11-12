@@ -1,0 +1,13 @@
+# Recipe c: oversample rare cancers. Offline.
+# Run:  synthpediatric run examples/cookbook/c_oversample_rare.yaml
+# oversample is only on in the `full` profile.
+name: Cookbook c - oversample retinoblastoma and hepatic tumors
+metadata: examples/nccr_ctc_dictionary.json
+n: 5000
+seed: 1
+profile: full
+oversample:
+  variable: iccc_category
+  values: ["V Retinoblastoma", "VII Hepatic"]
+  factor: 10                # multiplies the weight of each listed category (default 10)
+outputs: {dir: out/cookbook/c}

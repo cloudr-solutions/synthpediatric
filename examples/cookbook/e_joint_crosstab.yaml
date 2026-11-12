@@ -1,0 +1,16 @@
+# Recipe e: a joint cross-tab calibrated to the marginals (IPF). Offline.
+# Run:  synthpediatric run examples/cookbook/e_joint_crosstab.yaml
+name: Cookbook e - sex x age cross-tab with IPF
+metadata: examples/nccr_ctc_dictionary.json
+n: 5000
+seed: 1
+profile: standard
+targets:
+  marginals:                # IPF adjusts the cross-tab to match these
+    sex: {Male: 0.52, Female: 0.48}
+    age_group: {"00-04": 0.30, "05-09": 0.15, "10-14": 0.15, "15-19": 0.40}
+  joints:
+    cliques:
+      - [sex, age_group]    # exactly one clique per config
+    crosstabs: examples/profiles/crosstab_sex_age.csv   # columns: sex, age_group, count
+outputs: {dir: out/cookbook/e}

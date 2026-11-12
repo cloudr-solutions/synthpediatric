@@ -1,0 +1,34 @@
+{
+  "name": "CTC mini dictionary (cookbook)",
+  "source": "CTC",
+  "version": "cookbook",
+  "n_records": null,
+  "notes": "Illustrative, for recipe g only. It uses the CTC variable names and category labels that examples/ctc_consistency_rules.json expects. ICCC counts are the public figures from examples/nccr_ctc_dictionary.json; every other frequency is a placeholder. Not real patient data.",
+  "variables": [
+    {"name": "sex", "label": "Sex", "type": "categorical", "values": [
+      {"value": "Male", "count": 796000}, {"value": "Female", "count": 678368}]},
+    {"name": "icccMajor", "label": "ICCC major category", "type": "categorical", "values": [
+      {"value": "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases", "count": 111533},
+      {"value": "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms", "count": 164378},
+      {"value": "V. Retinoblastoma", "count": 3969},
+      {"value": "VII. Hepatic Tumors", "count": 9571}]},
+    {"name": "ageRecode19Groups", "label": "Age recode (19 groups)", "type": "categorical", "values": [
+      {"value": "00 years", "count": 36000},
+      {"value": "01-04 years", "count": 17000},
+      {"value": "05-09 years", "count": 15000},
+      {"value": "10-14 years", "count": 14000},
+      {"value": "15-19 years", "count": 18000}]},
+    {"name": "gleasonScoreClinicalRecode", "label": "Gleason score, clinical", "type": "categorical", "values": [
+      {"value": "Not applicable", "count": 50}, {"value": "Score 6 or less", "count": 25}, {"value": "Score 7", "count": 25}]},
+    {"name": "gleasonScorePathologicRecode", "label": "Gleason score, pathologic", "type": "categorical", "values": [
+      {"value": "Not applicable", "count": 50}, {"value": "Score 6 or less", "count": 25}, {"value": "Score 7", "count": 25}]},
+    {"name": "gleasonPatternClinicalRecode", "label": "Gleason pattern, clinical", "type": "categorical", "values": [
+      {"value": "Not applicable", "count": 50}, {"value": "Pattern 3", "count": 25}, {"value": "Pattern 4", "count": 25}]},
+    {"name": "gleasonPatternPathologicRecode", "label": "Gleason pattern, pathologic", "type": "categorical", "values": [
+      {"value": "Not applicable", "count": 50}, {"value": "Pattern 3", "count": 25}, {"value": "Pattern 4", "count": 25}]},
+    {"name": "gleasonTertiaryPattern", "label": "Gleason tertiary pattern", "type": "categorical", "values": [
+      {"value": "Not applicable", "count": 50}, {"value": "Pattern 5", "count": 25}, {"value": "None", "count": 25}]},
+    {"name": "psaLabValueRecode", "label": "PSA lab value", "type": "categorical", "values": [
+      {"value": "Not applicable", "count": 50}, {"value": "Under 10", "count": 25}, {"value": "10 or more", "count": 25}]}
+  ]
+}
