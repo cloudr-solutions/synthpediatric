@@ -1,0 +1,17 @@
+# Profile: marginals_only  (marginals + overrides + cohort). Offline.
+# Run:  synthpediatric run examples/profiles/marginals_only.yaml
+name: Profile demo - marginals_only
+metadata: examples/nccr_ctc_dictionary.json
+n: 2000
+seed: 7
+profile: marginals_only
+
+targets:
+  marginals:              # keep these distributions (counts or proportions)
+    sex: {Male: 0.52, Female: 0.48}
+
+cohort:                   # restrict to a sub-population
+  filters:
+    - {variable: vital_status, op: equals, values: [Alive]}
+
+outputs: {dir: out/profile_marginals_only}

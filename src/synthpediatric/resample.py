@@ -9,7 +9,7 @@ design - record the applied factors so downstream users can re-weight back if ne
 
 from __future__ import annotations
 
-from typing import Mapping, Sequence
+from typing import Any, Dict, Mapping, Sequence, Tuple
 
 from .dictionary import DataDictionary, VariableMarginal
 
@@ -63,6 +63,34 @@ def oversample_values(
     if factor <= 0:
         raise ValueError("factor must be positive")
     return reweight_variable(dictionary, variable, {v: factor for v in values})
+
+
+def oversample_with_report(
+    dictionary: DataDictionary,
+    variable: str,
+    values: Sequence[object],
+    factor: float = 10.0,
+) -> Tuple[DataDictionary, Dict[str, Any]]:
+    """Like :func:`oversample_values`, also returning what was applied.
+
+    The report records the factor applied to each matched category, any requested
+    values that matched no category, and the proportions before and after, so a run
+    manifest can state exactly how the cohort departs from natural proportions.
+    """
+    vm = dictionary.variables[variable]
+    wanted = {str(v) for v in values}
+    applied = {str(c): float(factor) for c in vm.categories if c in values or str(c) in wanted}
+    unmatched = [v for v in values if not any(c == v or str(c) == str(v) for c in vm.categories)]
+    reweighted = oversample_values(dictionary, variable, values, factor)
+    report = {
+        "variable": variable,
+        "factor": float(factor),
+        "factors_applied": applied,
+        "unmatched_values": unmatched,
+        "proportions_before": effective_proportions(dictionary, variable),
+        "proportions_after": effective_proportions(reweighted, variable),
+    }
+    return reweighted, report
 
 
 def rare_categories(

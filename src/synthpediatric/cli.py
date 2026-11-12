@@ -117,16 +117,27 @@ def cmd_generate(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
+    from .config import ConfigError
     from .recipe import run_recipe, write_run
 
-    bundle = run_recipe(args.recipe)
-    recipe = bundle["recipe"]
-    out_dir = args.out_dir or (recipe.get("outputs") or {}).get("dir") or "out/run"
-    path = write_run(bundle, out_dir, fmt=args.format)
+    try:
+        bundle = run_recipe(args.recipe)
+    except ConfigError as exc:
+        raise SystemExit(f"config error: {exc}")
+    config = bundle["config"]
+    outputs = config.get("outputs") or {}
+    out_dir = args.out_dir or outputs.get("dir") or "out/run"
+    fmt = args.format or outputs.get("format") or "csv"
+    path = write_run(bundle, out_dir, fmt=fmt)
 
     df = bundle["data"]
     result = bundle["result"]
-    print(f"Recipe: {recipe.get('name', '(unnamed)')}")
+    print(f"Recipe: {config.get('name', '(unnamed)')}")
+    print(f"Profile: {bundle['profile']}")
+    for entry in bundle["rules"]:
+        print(f"  {entry['order']:>3} {entry['name']:<12} {entry['status']:<9} {entry['reason']}")
+    for msg in bundle["warnings"]:
+        print(f"warning: {msg}")
     print(f"Generated {len(df):,} records -> {path}/")
     if result.total_repairs:
         print(f"Consistency repairs: {result.total_repairs:,}")
@@ -210,10 +221,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_rdf_opts(p_gen)
     p_gen.set_defaults(func=cmd_generate)
 
-    p_run = sub.add_parser("run", help="run a generation recipe (config-driven, reproducible)")
-    p_run.add_argument("recipe", help="path to a recipe JSON file")
-    p_run.add_argument("--out-dir", default=None, help="output directory (default: out/run)")
-    p_run.add_argument("--format", choices=("csv", "parquet"), default="csv")
+    p_run = sub.add_parser("run", help="run a generation config (YAML or JSON; reproducible)")
+    p_run.add_argument("recipe", help="path to a config .yaml/.yml or .json file")
+    p_run.add_argument("--out-dir", default=None, help="output dir (default: outputs.dir)")
+    p_run.add_argument(
+        "--format", choices=("csv", "parquet"), default=None,
+        help="cohort file format (default: outputs.format, else csv)",
+    )
     p_run.set_defaults(func=cmd_run)
 
     p_eval = sub.add_parser("evaluate", help="score a generated cohort against the dictionary")

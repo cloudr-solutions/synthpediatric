@@ -1,0 +1,24 @@
+# Profile: standard  (marginals_only + joints + constraints). Offline.
+# Run:  synthpediatric run examples/profiles/standard.yaml
+name: Profile demo - standard
+metadata: examples/nccr_ctc_dictionary.json
+n: 2000
+seed: 7
+profile: standard
+
+targets:
+  marginals:
+    sex: {Male: 0.52, Female: 0.48}
+  joints:                 # one cross-tab, calibrated to the marginals by IPF
+    cliques:
+      - [sex, age_group]
+    crosstabs: examples/profiles/crosstab_sex_age.csv   # columns: sex, age_group, count
+
+cohort:
+  filters:
+    - {variable: vital_status, op: equals, values: [Alive]}
+
+constraints:              # hard rules, repaired after sampling
+  file: examples/nccr_ctc_rules.json
+
+outputs: {dir: out/profile_standard}

@@ -28,6 +28,10 @@ class Constraint(ABC):
     name: str
     description: str
 
+    def column_refs(self) -> Dict[str, str]:
+        """Data columns this constraint reads or writes, keyed by the field that names them."""
+        return {}
+
     @abstractmethod
     def find_violations(self, df: pd.DataFrame) -> pd.Series:
         """Return a boolean Series marking rows that violate this constraint."""
@@ -57,6 +61,9 @@ class AllowedValuesConstraint(Constraint):
             raise ValueError(f"constraint '{self.name}': allowed_values must be non-empty")
         self._trigger = list(self.trigger_values)
         self._allowed = list(self.allowed_values)
+
+    def column_refs(self) -> Dict[str, str]:
+        return {"trigger_col": self.trigger_col, "target_col": self.target_col}
 
     def _check_columns(self, df: pd.DataFrame) -> None:
         for col in (self.trigger_col, self.target_col):
@@ -125,11 +132,18 @@ class RuleSet:
     def from_json(cls, path: Union[str, Path]) -> "RuleSet":
         with Path(path).open("r", encoding="utf-8") as fh:
             spec = json.load(fh)
+        return cls.from_dict(spec)
+
+    @classmethod
+    def from_dict(cls, spec: Dict[str, Any]) -> "RuleSet":
         raw = spec.get("constraints", [])
         constraints: List[Constraint] = []
         for entry in raw:
             ctype = entry.get("type", "allowed_values")
             if ctype not in _CONSTRAINT_TYPES:
-                raise ValueError(f"unknown constraint type: '{ctype}'")
+                raise ValueError(
+                    f"unknown constraint type: '{ctype}'. "
+                    f"Valid types: {', '.join(_CONSTRAINT_TYPES)}"
+                )
             constraints.append(_CONSTRAINT_TYPES[ctype].from_dict(entry))
         return cls(constraints=constraints, max_iterations=spec.get("max_iterations", 10))

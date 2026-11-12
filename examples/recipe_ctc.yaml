@@ -1,0 +1,33 @@
+# Same run as recipe_ctc.json, written in the config.yaml layout.
+# Needs network access (metadata: remote). Run:  synthpediatric run examples/recipe_ctc.yaml
+name: CTC synthetic cohort (demo)
+metadata: remote          # remote | path/to/nccr_instances.ttl | path/to/dictionary.json
+source: CTC
+n: 20000
+seed: 42
+profile: full             # marginals_only | standard | full  (see docs/config-and-rules.md)
+value_mode: label         # label | code
+no_frequency: uniform     # variables with no published frequencies: uniform | nullify | suppress
+missingness: none         # none | realistic (reserved, not implemented yet)
+
+constraints:              # hard logical rules (consistency repairs)
+  file: examples/ctc_consistency_rules.json
+
+targets:
+  survival:               # time/event columns by group
+    group_col: icccMajor
+    horizon_months: 120
+    specs:
+      "V. Retinoblastoma": {s5: 0.97}
+      "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases": {s5: 0.88}
+      "II. Lymphomas and reticuloendothelial neoplasms": {s5: 0.90}
+      "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms": {s5: 0.75}
+      "VII. Hepatic Tumors": {s5: 0.70}
+
+validate:                 # reserved: parsed and recorded in the manifest, not evaluated yet
+  fidelity: [tvd]
+  utility: []
+  privacy: []
+  suppression_min: 16
+
+outputs: {dir: out/recipe_ctc_yaml}

@@ -1,0 +1,43 @@
+# Profile: full  (standard + oversample + survival). Offline.
+# Run:  synthpediatric run examples/profiles/full.yaml
+# Toggle a single rule without changing the profile, e.g.:  rules: {oversample: false}
+name: Profile demo - full
+metadata: examples/nccr_ctc_dictionary.json
+n: 2000
+seed: 7
+profile: full
+
+targets:
+  marginals:
+    sex: {Male: 0.52, Female: 0.48}
+  joints:
+    cliques:
+      - [sex, age_group]
+    crosstabs: examples/profiles/crosstab_sex_age.csv
+  survival:
+    group_col: iccc_category
+    horizon_months: 120
+    specs:
+      "V Retinoblastoma": {s5: 0.97}
+      "I Leukemias": {s5: 0.88}
+      __default__: 0.80
+
+cohort:
+  filters:
+    - {variable: vital_status, op: equals, values: [Alive]}
+
+oversample:               # boost rare cancers; factors are recorded in the manifest
+  variable: iccc_category
+  values: ["V Retinoblastoma", "VII Hepatic"]
+  factor: 10
+
+constraints:
+  file: examples/nccr_ctc_rules.json
+
+validate:                 # reserved: recorded in the manifest, not evaluated yet
+  fidelity: [tvd, ks]
+  utility: [pmse]
+  privacy: [nn_distance]
+  suppression_min: 16
+
+outputs: {dir: out/profile_full}

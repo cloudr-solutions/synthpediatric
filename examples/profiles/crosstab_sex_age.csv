@@ -1,0 +1,17 @@
+sex,age_group,count
+Male,00-04,320
+Male,05-09,180
+Male,10-14,160
+Male,15-19,210
+Male,20-24,230
+Male,25-29,250
+Male,30-34,280
+Male,35-39,300
+Female,00-04,290
+Female,05-09,170
+Female,10-14,150
+Female,15-19,220
+Female,20-24,300
+Female,25-29,380
+Female,30-34,450
+Female,35-39,520

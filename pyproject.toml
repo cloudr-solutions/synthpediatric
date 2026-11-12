@@ -28,6 +28,10 @@ joints = [
     "sdmetrics>=0.14",
     "lifelines>=0.27",
 ]
+# YAML configs for `synthpediatric run` (JSON configs need no extra).
+yaml = [
+    "pyyaml==6.0.3",
+]
 # Plotting (static matplotlib + interactive Plotly HTML in the survival demos).
 viz = [
     "matplotlib>=3.6",
@@ -37,6 +41,7 @@ viz = [
 dev = [
     "pytest>=7",
     "ruff>=0.6",
+    "pyyaml==6.0.3",
 ]
 
 [project.scripts]
