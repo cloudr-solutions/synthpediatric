@@ -20,6 +20,7 @@ out/
 *.parquet
 *.csv
 !examples/**/*.csv
+!tests/data/*.csv
 
 # OS / editor
 .DS_Store

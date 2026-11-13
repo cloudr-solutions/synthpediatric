@@ -1,8 +1,10 @@
 """Tests for YAML/JSON configs, the rule registry, profiles and the run manifest (offline)."""
 import copy
-import hashlib
 import json
+from pathlib import Path
 
+import numpy as np
+import pandas as pd
 import pytest
 import yaml
 
@@ -15,9 +17,15 @@ from synthpediatric.rules import PROFILES, RULES, resolve_rules
 
 DICT = "examples/nccr_ctc_dictionary.json"
 
-# Cohort hash of a pre-YAML JSON recipe, captured BEFORE this feature was implemented
-# (includes an oversample value that matches nothing, which must stay harmless).
-LEGACY_GOLDEN_SHA256 = "46284168995b8b115a74aa65afefc5aa86cfde8a9516859d276081fca016dd29"
+# Cohort of a pre-YAML JSON recipe, captured BEFORE this feature was implemented, from
+# commit d418aa6 (macOS arm64, numpy 2.5.2, pandas 2.3.3), written with full float
+# precision. The recipe includes an oversample value that matches nothing, which must stay
+# harmless. Stored as a table instead of one whole-file SHA-256 because the exponential
+# survival times (`months`) differ in the last bit on Linux x86-64 (26 of 800 values,
+# relative difference <= 2.2e-16), which flips a byte-level hash while every categorical
+# and integer column stays identical.
+LEGACY_GOLDEN_CSV = Path(__file__).parent / "data" / "legacy_golden.csv"
+LEGACY_FLOAT_RTOL = 1e-12  # ~4500 ulp: far above libm noise, far below any real change
 
 
 def _legacy_recipe():
@@ -117,8 +125,48 @@ def test_canonical_config_is_idempotent():
 
 
 def test_legacy_recipe_output_unchanged():
+    """The legacy recipe still gives the pre-refactor cohort: exact for every non-float
+    column (categories, event flags, row order), tight tolerance for float columns."""
     df = run_recipe(_legacy_recipe())["data"]
-    assert hashlib.sha256(df.to_csv(index=False).encode()).hexdigest() == LEGACY_GOLDEN_SHA256
+    golden = pd.read_csv(LEGACY_GOLDEN_CSV, float_precision="round_trip",
+                         dtype={c: str for c in df.columns if df[c].dtype == object},
+                         keep_default_na=False)
+    assert list(df.columns) == list(golden.columns), "column set or order changed"
+    assert len(df) == len(golden), f"row count changed: {len(df)} != {len(golden)}"
+    differing = []
+    for col in df.columns:
+        if pd.api.types.is_float_dtype(df[col]):
+            if not np.allclose(df[col].to_numpy(), golden[col].to_numpy(),
+                               rtol=LEGACY_FLOAT_RTOL, atol=0.0, equal_nan=True):
+                differing.append(f"{col} (float, rtol={LEGACY_FLOAT_RTOL})")
+        elif not df[col].astype(str).reset_index(drop=True).equals(golden[col].astype(str)):
+            got, want = df[col].astype(str).to_numpy(), golden[col].astype(str).to_numpy()
+            n_bad = int((got != want).sum())
+            differing.append(f"{col} (exact, {n_bad} of {len(df)} rows differ)")
+    assert not differing, "legacy output changed in columns: " + "; ".join(differing)
+
+
+def test_legacy_layout_and_spec_layout_give_identical_frames(tmp_path):
+    """Same environment, so exact equality: the old keys and the new layout (as dict and as
+    a YAML file) must generate the same cohort, and a rerun with the same seed must match."""
+    legacy = _legacy_recipe()
+    spec = {
+        "name": "legacy-local", "metadata": DICT, "n": 800, "seed": 7, "profile": "full",
+        "strict": False,  # legacy keys imply non-strict: the unmatched oversample value warns
+        "targets": {
+            "marginals": {"sex": {"Male": 700, "Female": 300}},
+            "survival": {"group_col": "iccc_category", "horizon_months": 120,
+                         "specs": {"__default__": 0.8}},
+        },
+        "oversample": {"variable": "iccc_category", "values": ["__none__"], "factor": 5},
+    }
+    yp = tmp_path / "spec.yaml"
+    yp.write_text(yaml.safe_dump(spec, sort_keys=False))
+    a = run_recipe(copy.deepcopy(legacy))["data"]
+    again = run_recipe(copy.deepcopy(legacy))["data"]
+    assert a.equals(again), "same seed twice gave different output"
+    assert a.equals(run_recipe(copy.deepcopy(spec))["data"]), "spec layout differs from legacy keys"
+    assert a.equals(run_recipe(yp)["data"]), "YAML file differs from legacy keys"
 
 
 def test_legacy_unmatched_oversample_value_is_warned_not_fatal():
