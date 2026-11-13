@@ -300,6 +300,16 @@ a valid config and gives the same hash.
 Oversampling still renames the dictionary with a `[reweighted: ...]` tag; the factors and
 effective proportions now live in the manifest.
 
+## Reproducibility note
+
+The same config and seed give the same cohort on the same numpy/pandas/platform. Across
+platforms, categorical and integer columns were identical in our checks (macOS arm64 vs
+Linux x86-64, numpy 2.2.6 and 2.5.x), but continuous survival times (`months`) can differ
+in the last bit (relative difference up to about 2.2e-16) because the exponential sampler
+calls the platform's math library. Compare cohorts across machines with a float tolerance,
+not a byte-level hash. `tests/test_config_rules.py::test_legacy_recipe_output_unchanged`
+does this against `tests/data/legacy_golden.csv`.
+
 ## Examples
 
 - `examples/recipe_ctc.json` (legacy keys) and `examples/recipe_ctc.yaml` (this layout)
