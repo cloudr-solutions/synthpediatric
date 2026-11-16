@@ -186,6 +186,26 @@ rules outside the profile are kept and just not applied. Toggle a single rule wi
 With no `profile`, the default is `full`, which is what recipes meant before profiles
 existed (every configured rule runs).
 
+### The not-applicable fraction
+
+`na_fraction` is a setting like `no_frequency`, not a rule. For NCCR metadata sources it is
+on by default; a variable whose published counts cover only part of its source's records
+gets the uncovered share of rows as its own not-applicable code, or blank. It runs after
+the dictionary rules and the joint calibration, before the `constraints` repairs, and it
+leaves the variables of `conditional` and `joints` alone. A JSON dictionary never gets it.
+
+```yaml
+na_fraction: true             # or false (quote "off"/"on" in YAML 1.1 if you write words)
+na_fraction:                  # or a block
+  mode: on                    # default: on for NCCR sources
+  min_share: 0.005            # the smallest uncovered share that counts as material
+  variables: {psaLabValueRecode: off, regionalNodesPositive: on}   # on | off | auto
+  overrides: my_null_overrides.json    # extra per-code corrections for the classifier
+```
+
+The rule, the choice of code, the order against the other rules and the manifest entry are in
+[null-codes.md](null-codes.md).
+
 ### Variables with no published frequency
 
 `no_frequency` decides what happens to variables whose metadata has permissible values but
@@ -336,6 +356,7 @@ a valid config and gives the same hash.
 | `rules` | every rule in execution order: `name`, `order`, `stage`, `status`, `reason`, `params`, and `details` for applied rules (for `joints`: iterations, deviation, convergence; for `conditional`: provenance, minimum-cell decision, age bins and splits, uncovered-group assumptions, achieved differences, see [conditional.md](conditional.md)) |
 | `oversampling` | one entry per oversample step: `variable`, `factor`, `factors_applied` (per category), `unmatched_values` (always empty when `strict` is true, because a non-matching label is an error), `proportions_before`, `proportions_after` |
 | `no_frequency` | the mode, and the variables that had no published frequency |
+| `na_fraction` | NCCR sources only: `settings` (mode, who supplied it, `min_share`, per-variable settings), and per variable with a gap: `covered_share`, `uncovered_share`, `status` (`applied` or `skipped`) and `reason`, `code` (null with `blank: true` for a blank), `generated_rows`, `generated_share`, `supplied_by`. See [null-codes.md](null-codes.md) |
 | `table_type`, `table_label`, `source`, `linkage` | `unlinked_single_source`, a short label, the NCCR source id (null for a JSON dictionary), and the statement that rows cannot be joined across sources (no participant key in the metadata) |
 | `generation_report` | what the run skipped and invented, see "Dropped and invented variables" |
 | `source_policy` | the effective policy: for each setting its value and who supplied it, see "Source policy" (null for a JSON dictionary) |
@@ -396,6 +417,7 @@ Three things depend on the source, so they have documented defaults (in
 | `no_frequency` | `nullify` for MCE (359 of its 361 columns have no counts); `uniform` for the rest | top-level `no_frequency`, or `source_policy.no_frequency` |
 | value mode per variable | PHARM `medicationDispenseDuration` is read in `code` mode (its label is the record count, its code is the day value); `label` for the rest | top-level `value_modes`, `value_mode`, or `source_policy.value_modes` |
 | `survival` | `allow` for CTC, `refuse` for the other eight | `source_policy.survival: allow` (or `refuse`) |
+| `na_fraction` | `on` for all nine NCCR sources (a JSON dictionary has no policy and no fraction) | top-level `na_fraction`, see [null-codes.md](null-codes.md) |
 
 Precedence, highest first: what the config sets explicitly at the top level
 (`no_frequency`, `value_modes`, `value_mode`), then `source_policy:`, then the built-in
