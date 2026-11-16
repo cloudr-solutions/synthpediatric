@@ -53,10 +53,9 @@ def test_example_runs_and_is_conformant(name, tmp_path, monkeypatch):
     df = bundle["data"]
     assert len(df) == 2000
     conf = conformance_report(bundle["dictionary"], df)
-    # The consistency rules in examples/ctc_consistency_rules.json write 'Not applicable' on
-    # purpose (prostate markers of female records); no other out-of-vocabulary value is allowed.
+    # No example applies a consistency rules file, so every value is in the dictionary.
     bad = conf[conf["n_out_of_vocabulary"] > 0]
-    assert all(set(ex) == {"Not applicable"} for ex in bad["examples"])
+    assert bad.empty, bad
     assert "Unknown" not in set(df["ageRecode19Groups"])
     if "sex" in df.columns:
         assert "Unknown" not in set(df["sex"])

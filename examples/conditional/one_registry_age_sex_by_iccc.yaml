@@ -2,6 +2,9 @@
 # diagnosis years 2014-2023, age and sex by ICCC major group. Origin: an aggregate table from
 # NCCR data in CGC. Release: cleared for public use as synthesis inputs by the team lead,
 # 2026-11-16. Several cells are below 16, so the minimum-cell override is set explicitly below.
+# Test logic: follow the data dictionary (permissible values and published frequencies), then add
+# ONLY the rules taken from this table. No other rules (no consistency rules file) and no input
+# from any other table.
 # Docs: docs/conditional.md
 # Run (from the repository root):
 #   python examples/conditional/run_example.py examples/conditional/one_registry_age_sex_by_iccc.yaml \
@@ -102,6 +105,4 @@ targets:
           share: exclude       # excluded: not reported for this registry
         "Not classified by SEER or in situ":
           share: exclude       # excluded: not reported for this registry
-constraints:                   # clinical consistency rules, applied after the conditional rule
-  file: examples/ctc_consistency_rules.json
 outputs: {dir: out/conditional/one_registry, format: csv, archive: zip}

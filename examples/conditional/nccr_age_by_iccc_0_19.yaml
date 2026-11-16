@@ -2,6 +2,9 @@
 # group. Origin: an aggregate table from NCCR data in CGC. Release: cleared for public use as
 # synthesis inputs by the team lead, 2026-11-16. One cell is below 16 (Retinoblastoma, 15-19), so
 # the minimum-cell override is set explicitly below. The table has no sex.
+# Test logic: follow the data dictionary (permissible values and published frequencies), then add
+# ONLY the rules taken from this table. No other rules (no consistency rules file) and no input
+# from any other table.
 # Docs: docs/conditional.md
 # Run (from the repository root):
 #   python examples/conditional/run_example.py examples/conditional/nccr_age_by_iccc_0_19.yaml \
@@ -71,6 +74,4 @@ targets:
           "XI. Other Malignant Epithelial Neoplasms And Malignant Melanomas": {"0-4": 587, "5-9": 1355, "10-14": 5569, "15-19": 17733}
           "XII. Other And Unspecified Malignant Neoplasms": {"0-4": 387, "5-9": 120, "10-14": 205, "15-19": 451}
           "Not classified by SEER or in situ": {"0-4": 1670, "5-9": 1071, "10-14": 1742, "15-19": 4301}
-constraints:                   # clinical consistency rules, applied after the conditional rule
-  file: examples/ctc_consistency_rules.json
 outputs: {dir: out/conditional/nccr_all, format: csv, archive: zip}
