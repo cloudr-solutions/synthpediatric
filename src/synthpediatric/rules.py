@@ -521,6 +521,38 @@ def _apply_conditional(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
     return apply(ctx, p)
 
 
+def repair_target_errors(
+    constraint: Any, variables: Mapping[str, Any], where: str, source: str = "inline"
+) -> List[str]:
+    """Messages for each value an ``allowed_values`` rule repairs to that is not a permissible
+    value of the target column. Values are compared in the run's value mode (a label in label
+    mode, the notation in code mode). Labels with line breaks must match exactly."""
+    allowed = getattr(constraint, "allowed_values", None)
+    vm = variables.get(getattr(constraint, "target_col", None))
+    if not allowed or vm is None:  # another rule type, repair_to_null, or an absent column
+        return []
+    var = constraint.target_col
+    cats = _cats(vm)
+    note = f" in constraint '{constraint.name}'"
+    if source != "inline":
+        note += f" of {source}"
+    note += (
+        f" (not a permissible value of '{var}'; copy it exactly from the dictionary, or use "
+        "repair_to_null if the variable has no not-applicable code)"
+    )
+    return [
+        unknown_message(f"{where}.allowed_values", "category", value, cats, note)
+        for value in allowed
+        if str(value) not in cats
+    ]
+
+
+def _check_repair_targets(ctx: Context, constraint: Any, where: str, source: str) -> None:
+    variables = {**ctx.dictionary.variables, **ctx.base_dictionary.variables}
+    for message in repair_target_errors(constraint, variables, where, source):
+        _flag(ctx, message, "rule kept as written")
+
+
 def _apply_constraints(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
     from .constraints import RuleSet
 
@@ -558,6 +590,7 @@ def _apply_constraints(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
                 break
         else:
             usable.append(constraint)
+            _check_repair_targets(ctx, constraint, f"{where}[{i}]", source)
     ruleset.constraints = usable
     ctx.ruleset = ruleset
     return {"source": source, "n_constraints": len(ruleset.constraints)}

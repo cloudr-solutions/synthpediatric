@@ -169,25 +169,22 @@ def test_null_is_written_blank_in_csv_and_null_in_parquet(tmp_path):
     assert pd.read_parquet(tmp_path / "c.parquet")["psa"].isna().sum() == df["psa"].isna().sum()
 
 
-def test_shipped_ctc_rules_repair_prostate_variables_to_null():
+def test_shipped_ctc_rules_repair_only_psa_to_null():
+    # The Gleason rules repair to their metadata code X8 (see test_repair_targets.py).
     spec = json.loads((ROOT / "examples" / "ctc_consistency_rules.json").read_text())
     nulls = [c for c in spec["constraints"] if c.get("repair_to_null")]
-    assert len(nulls) == 6
-    assert {c["target_col"] for c in nulls} == {
-        "gleasonPatternClinicalRecode", "gleasonPatternPathologicRecode",
-        "gleasonScoreClinicalRecode", "gleasonScorePathologicRecode",
-        "gleasonTertiaryPattern", "psaLabValueRecode",
-    }
-    assert "Not applicable" not in json.dumps(spec["constraints"])
+    assert {c["target_col"] for c in nulls} == {"psaLabValueRecode"}
+    assert ["Not applicable"] not in [c.get("allowed_values") for c in spec["constraints"]]
     RuleSet.from_dict(spec)
 
 
 def test_cookbook_null_repair_example_loads_and_runs():
     text = (ROOT / "docs" / "cookbook.md").read_text()
-    section = text.split("## Not applicable values: repair to null", 1)[1]
+    section = text.split("## Not applicable values: use the metadata code, or null", 1)[1]
     block = section.split("```json", 1)[1].split("```", 1)[0]
-    rule = json.loads(block)
-    assert rule["repair_to_null"] is True
+    rules = json.loads(block)
+    assert rules[0]["allowed_values"][0].startswith("Not applicable: Information not collected")
+    (rule,) = [r for r in rules if r.get("repair_to_null")]
     rule.update(target_col="psa")
     result = generate(_dict(), 500, rng=6, ruleset=RuleSet.from_dict({"constraints": [rule]}))
     assert result.data.loc[result.data["sex"] == "Female", "psa"].isna().all()

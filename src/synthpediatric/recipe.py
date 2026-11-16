@@ -307,6 +307,15 @@ def write_run(
     }
     if archive_info is not None:  # only runs with a zip get this key
         manifest["archive"] = archive_info
+    # Per-variable NULL counts, only for scored columns that have any NULL: a run without
+    # NULLs writes the same manifest as before.
+    null_counts = {
+        str(c): int(df[c].isna().sum())
+        for c in df.columns
+        if c in d_scored.variables and df[c].isna().any()
+    }
+    if null_counts:
+        manifest["coverage_null_counts"] = null_counts
     validation = bundle.get("validation")
     if validation is not None:  # only when the config requested metrics: other runs are unchanged
         from .validate import (
