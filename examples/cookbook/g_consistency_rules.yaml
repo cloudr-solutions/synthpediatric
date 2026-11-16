@@ -8,5 +8,5 @@ n: 3000
 seed: 1
 profile: standard
 constraints:
-  file: examples/ctc_consistency_rules.json
+  file: examples/ctc_consistency_rules_label.json
 outputs: {dir: out/cookbook/g}

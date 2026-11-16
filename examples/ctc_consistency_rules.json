@@ -1,5 +1,5 @@
 {
-  "_comment": "Illustrative, extensible clinical consistency rules for synthetic NCCR CTC (registry) cohorts generated from published marginals. These are STARTER rules meant to be reviewed and expanded with clinician input at the Jamboree. They encode two well-known relationships: (1) prostate-specific markers do not apply to female patients, and (2) retinoblastoma is a cancer of early childhood. Note: prostate-marker record counts in the NCCR metadata are conditional on the prostate-cancer subpopulation, so independent marginal sampling otherwise assigns a Gleason/PSA value to every synthetic record.",
+  "_comment": "Illustrative, extensible clinical consistency rules for synthetic NCCR CTC (registry) cohorts generated from published marginals. These are STARTER rules meant to be reviewed and expanded with clinician input at the Jamboree. They encode two well-known relationships: (1) prostate-specific markers do not apply to female patients, and (2) retinoblastoma is a cancer of early childhood. The prostate rules repair to NULL (blank) because the real CTC dictionary has no permissible value meaning 'does not apply to this patient'; use examples/nccr_ctc_rules.json with a dictionary that does list 'Not applicable'. The prostate rules repair to NULL (blank) because the real CTC dictionary has no permissible value meaning 'does not apply to this patient'; use examples/nccr_ctc_rules.json with a dictionary that does list 'Not applicable'. Note: prostate-marker record counts in the NCCR metadata are conditional on the prostate-cancer subpopulation, so independent marginal sampling otherwise assigns a Gleason/PSA value to every synthetic record.",
   "max_iterations": 5,
   "constraints": [
     {
@@ -8,7 +8,7 @@
       "trigger_col": "sex",
       "trigger_values": ["Female"],
       "target_col": "gleasonScoreClinicalRecode",
-      "allowed_values": ["Not applicable"],
+      "repair_to_null": true,
       "description": "Gleason score (prostate) does not apply to female patients."
     },
     {
@@ -17,7 +17,7 @@
       "trigger_col": "sex",
       "trigger_values": ["Female"],
       "target_col": "gleasonScorePathologicRecode",
-      "allowed_values": ["Not applicable"],
+      "repair_to_null": true,
       "description": "Gleason score (prostate) does not apply to female patients."
     },
     {
@@ -26,7 +26,7 @@
       "trigger_col": "sex",
       "trigger_values": ["Female"],
       "target_col": "gleasonPatternClinicalRecode",
-      "allowed_values": ["Not applicable"],
+      "repair_to_null": true,
       "description": "Gleason pattern (prostate) does not apply to female patients."
     },
     {
@@ -35,7 +35,7 @@
       "trigger_col": "sex",
       "trigger_values": ["Female"],
       "target_col": "gleasonPatternPathologicRecode",
-      "allowed_values": ["Not applicable"],
+      "repair_to_null": true,
       "description": "Gleason pattern (prostate) does not apply to female patients."
     },
     {
@@ -44,7 +44,7 @@
       "trigger_col": "sex",
       "trigger_values": ["Female"],
       "target_col": "gleasonTertiaryPattern",
-      "allowed_values": ["Not applicable"],
+      "repair_to_null": true,
       "description": "Gleason tertiary pattern (prostate) does not apply to female patients."
     },
     {
@@ -53,7 +53,7 @@
       "trigger_col": "sex",
       "trigger_values": ["Female"],
       "target_col": "psaLabValueRecode",
-      "allowed_values": ["Not applicable"],
+      "repair_to_null": true,
       "description": "PSA (prostate-specific antigen) does not apply to female patients."
     },
     {

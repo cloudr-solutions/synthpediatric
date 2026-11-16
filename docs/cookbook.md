@@ -502,3 +502,81 @@ before. Put `strict: true` in one to turn the checks on.
 - Only the first mistake is reported per run; fix it and run again to see the next.
 - Data values: a dictionary that is itself wrong (for example the wrong metadata `source`) is
   not detected.
+
+## Not applicable values: repair to null
+
+Some variables only apply to part of the cohort, for example prostate markers (Gleason score,
+PSA). A consistency rule has to put something in those cells for the other records. Before
+inventing a label, check what the dictionary lists. The real CTC metadata has no value that
+means "does not apply to this patient": the Gleason variables have labels for other things
+(`No needle core biopsy/TURP performed`, `Not documented; Not assessed or unknown if assessed`,
+and a zero-count `Not applicable: Information not collected for this case`, which codes a
+prostate case where an item was not collected), and `psaLabValueRecode` has no such label at
+all. A made-up `Not applicable` string is then out of vocabulary: on 20,000 records it was
+flagged 12,187 times per variable and pushed each variable's TV distance to about 0.61.
+
+For that case a rule can repair to NULL (a blank cell) instead:
+
+```json
+{
+  "type": "allowed_values",
+  "name": "psa_is_male_only",
+  "trigger_col": "sex",
+  "trigger_values": ["Female"],
+  "target_col": "psaLabValueRecode",
+  "repair_to_null": true
+}
+```
+
+`repair_to_null` is an optional key on an `allowed_values` rule, default `false`. With it set,
+`allowed_values` is left out (giving both is an error). Every record whose trigger matches and
+whose target has a value is violating, and the repair sets the target to NULL. Rules without
+the key behave exactly as before.
+
+Which file for which dictionary:
+
+| Rules file | Use with | Repairs the prostate variables to |
+|---|---|---|
+| `examples/ctc_consistency_rules.json` | the real CTC metadata (`nccr_instances.ttl`, `--source CTC`) | NULL |
+| `examples/ctc_consistency_rules_label.json` | a dictionary that lists `Not applicable`, such as the recipe g mini dictionary | the label `Not applicable` |
+| `examples/nccr_ctc_rules.json` | the offline `examples/nccr_ctc_dictionary.json` | its own labels |
+
+Recipe g now points at the `_label` file, so its output is the same as before.
+
+Decisions on the details:
+
+- **JSON shape.** A flag on the existing rule, not a new rule type, so `type`, `trigger_col`,
+  `trigger_values` and `target_col` keep their meaning and old files need no change.
+- **Null as a trigger.** A NULL never matches `trigger_values`, so a rule whose trigger cell is
+  blank is neither a violation nor a crash.
+- **Null as a target of another rule.** An `allowed_values` rule with a list treats NULL as out
+  of range and repairs it from the list. If two rules in one file disagree about the same
+  target (one wants NULL, one wants a label), they fight until `max_iterations` runs out. The
+  repair counts show it. Avoid pairing them on the same column and trigger.
+- **Repair loop.** A NULL repair is idempotent: once the cell is NULL the rule is satisfied, so
+  it adds nothing on later iterations and the loop ends as soon as nothing else violates.
+- **Conformance.** A NULL is never out of vocabulary. When the cohort has any NULL in a scored
+  column, `conformance.csv` gets an `n_null` column with the count per variable. With no NULLs
+  the file is unchanged, so earlier outputs stay identical.
+- **Fidelity.** TV distance for a column with NULLs is computed among its non-NULL values, so
+  blanks do not look like a distribution error. A column that is entirely NULL gets NaN.
+- **Files.** CSV writes a NULL as an empty cell. Parquet stores a real null. Read back with
+  pandas, both come out as missing.
+
+Real numbers: `synthpediatric generate nccr_instances.ttl --source CTC -n 20000 --seed 42
+--rules examples/ctc_consistency_rules.json --evaluate`, 12,187 female records repaired per
+rule (the `run` path with `examples/recipe_ctc.yaml` gave the same counts):
+
+| Prostate variable | Before: out of vocabulary | Before: TV distance | After: NULL cells | After: out of vocabulary | After: TV distance |
+|---|---|---|---|---|---|
+| gleasonPatternClinicalRecode | 12,187 | 0.609 | 12,187 | 0 | 0.013 |
+| gleasonPatternPathologicRecode | 12,187 | 0.609 | 12,187 | 0 | 0.008 |
+| gleasonScoreClinicalRecode | 12,187 | 0.609 | 12,187 | 0 | 0.013 |
+| gleasonScorePathologicRecode | 12,187 | 0.609 | 12,187 | 0 | 0.016 |
+| gleasonTertiaryPattern | 12,187 | 0.609 | 12,187 | 0 | 0.003 |
+| psaLabValueRecode | 12,187 | 0.609 | 12,187 | 0 | 0.006 |
+
+The mean TV distance over the 76 published columns fell from 0.052 to 0.005, and the whole
+cohort has no out-of-vocabulary value. In the published counts these columns cover only about
+0.1% of records, so the real data is blank for nearly everyone. A configurable
+not-applicable fraction for such sub-population variables is a separate feature, not built here.
