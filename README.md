@@ -205,6 +205,7 @@ repaired by resampling). See `examples/ctc_consistency_rules.json`.
 ```
 
 Compare synthetic cohorts with a real one (discriminator AUC and more): [docs/validation.md](docs/validation.md).
+Measure real data in CGC and export disclosure-controlled aggregates the generator reads (Input team): [docs/measure.md](docs/measure.md).
 
 ## Privacy posture
 
