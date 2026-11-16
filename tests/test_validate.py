@@ -51,7 +51,7 @@ def test_metric_names_closed_list():
     with pytest.raises(V.MetricNameError):
         V.check_metric_names("tvd")
     with pytest.raises(V.MetricNameError):
-        V.check_metric_names(["tvd"], group="privacy")  # none defined yet
+        V.check_metric_names(["tvd"], group="privacy")  # tvd is not a privacy metric
     block = {"fidelity": ["tvd"], "utility": [], "privacy": [], "suppression_min": 16}
     assert V.check_validate_block(block)["fidelity"] == ("tvd",)
     with pytest.raises(V.MetricNameError):

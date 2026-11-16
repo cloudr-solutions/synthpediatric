@@ -428,7 +428,7 @@ def test_oversampling_factors_and_proportions_in_manifest(tmp_path):
 
 
 def test_validate_block_round_trips_into_manifest(tmp_path):
-    block = {"fidelity": ["tvd", "ks"], "utility": ["pmse"], "privacy": ["nn_distance"],
+    block = {"fidelity": ["tvd", "ks"], "utility": [], "privacy": ["nn_distance_ratio"],
              "suppression_min": 11}
     m = json.loads((write_run(run_recipe(
         {"metadata": DICT, "n": 20, "seed": 1, "validate": block}), tmp_path) / "manifest.json"

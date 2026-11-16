@@ -126,6 +126,13 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
     )
     if policy:
         ctx.warnings.extend(policy["warnings"])
+    # Metric names and the files `validate:` names are checked now, before any record exists.
+    # (validate imports the package version, so it is imported here, not at package init.)
+    from .validate import resolve_validate_block, run_configured_validation
+
+    validate_block = (
+        resolve_validate_block(cfg["validate"], strict, ctx.warnings) if "validate" in cfg else None
+    )
     # Every reference in the config is checked against the dictionary here, before any record
     # is sampled; ConfigError reaches the caller before write_run creates a file.
     run_stage(ctx, resolved, "dictionary")
@@ -148,6 +155,13 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
         for name in nullified:
             ctx.df[name] = None
 
+    validation = None
+    if validate_block is not None:
+        validation = run_configured_validation(
+            validate_block, ctx.df, ctx.dictionary, seed=seed, exclude=nullified,
+            label="run",
+        )
+
     return {
         "dictionary": ctx.dictionary, "result": result, "data": ctx.df,
         "recipe": raw, "config": cfg, "config_sha256": sha, "profile": cfg["profile"],
@@ -157,6 +171,7 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
         "nullified": nullified, "input_files": ctx.input_files,
         "source": loaded.source_id, "source_policy": policy,
         "report": generation_report(loaded, mode),
+        "validation": validation,
     }
 
 
@@ -254,5 +269,23 @@ def write_run(bundle: Dict[str, Any], out_dir: Union[str, Path], fmt: str = "csv
         "source_policy": _policy_for_manifest(bundle.get("source_policy")),
         "coverage": {str(k): int(v) for k, v in cov_counts.items()},
     }
+    validation = bundle.get("validation")
+    if validation is not None:  # only when the config requested metrics: other runs are unchanged
+        from .validate import (
+            REPORT_NAME,
+            SUMMARY_NAME,
+            validation_headline,
+            write_validation_files,
+        )
+
+        write_validation_files(validation, out)
+        manifest["validation"] = {
+            "report": REPORT_NAME,
+            "summary": SUMMARY_NAME,
+            "mode": validation["mode"],
+            "headline": validation_headline(validation),
+            "requested": validation["requested"],
+            "skipped": validation["skipped"],
+        }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
     return out
