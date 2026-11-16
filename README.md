@@ -128,7 +128,8 @@ list, the applied oversampling factors, the config and its hash, so a run can be
 reproduced from it alone. Existing JSON recipes keep working. The full specification,
 rule order and precedence are in [docs/config-and-rules.md](docs/config-and-rules.md);
 profile examples are in `examples/profiles/`. To write your own, start from the tested
-recipes in the [cookbook](docs/cookbook.md).
+recipes in the [cookbook](docs/cookbook.md). The DRAFT clinical consistency battery (unverified)
+is in [docs/battery-verification.md](docs/battery-verification.md).
 
 ## Why marginals are not enough (stated up front)
 
