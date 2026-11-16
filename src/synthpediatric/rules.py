@@ -34,6 +34,7 @@ distribution. ``Context.strict`` (config ``strict:``) decides whether a bad refe
 
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
@@ -540,11 +541,19 @@ def repair_target_errors(
         f" (not a permissible value of '{var}'; copy it exactly from the dictionary, or use "
         "repair_to_null if the variable has no not-applicable code)"
     )
-    return [
-        unknown_message(f"{where}.allowed_values", "category", value, cats, note)
-        for value in allowed
-        if str(value) not in cats
-    ]
+    out = []
+    for value in allowed:
+        if str(value) in cats:
+            continue
+        extra = note
+        # difflib misses a short label against a long one ('Not applicable' vs the X8 label)
+        names = [str(c) for c in cats]
+        if not difflib.get_close_matches(str(value), names, n=1):
+            starts = [c for c in names if c.lower().startswith(str(value).lower())]
+            if starts:
+                extra += f" (Did you mean '{starts[0]}'?)"
+        out.append(unknown_message(f"{where}.allowed_values", "category", value, cats, extra))
+    return out
 
 
 def _check_repair_targets(ctx: Context, constraint: Any, where: str, source: str) -> None:
