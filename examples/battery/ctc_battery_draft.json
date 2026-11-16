@@ -1,0 +1,314 @@
+{
+  "battery": "ctc_clinical_consistency_battery",
+  "status": "draft",
+  "version": "0.1-draft",
+  "warning": "DRAFT, UNVERIFIED. Every item below comes from the Jamboree read-ahead (Section 4) and has not been checked against SEER*Stat or NCCR treatment data, nor pruned by clinicians. Do not cite or publish any item as a rule until its status is changed from draft to verified in this file and in docs/battery-verification.md.",
+  "source": {
+    "document": "NCCR Jamboree read-ahead, Section 4 (Draft clinical consistency test battery); also Section 6b of 'additional decisions for Jamboree'",
+    "table": "CTC (Consolidated Tumor Case), column names and labels from the published NCCR metadata nccr_instances.ttl"
+  },
+  "notes": [
+    "This file loads with RuleSet.from_json and with the config key constraints.file. The engine reads only the 'constraints' list and ignores every other key, so the metadata (id, family, status, source_statement) and the 'checks' and 'roadmap' sections do not change how existing rule files behave.",
+    "'constraints' are hard rules: generation repairs them and the output check counts violations of the same objects. 'checks' are probabilistic statements: they have no repair step and are compared as distributions. 'roadmap' items cannot be expressed on the single CTC table today.",
+    "Numbers quoted from the read-ahead (ALL about 90 percent five-year survival, 2 standard deviations) are check targets for the Input team to verify. They are not generation parameters."
+  ],
+  "max_iterations": 10,
+  "constraints": [
+    {
+      "type": "allowed_values",
+      "id": "S1.3",
+      "name": "cervical_carcinoma_is_female",
+      "family": "sex_restricted_sites",
+      "status": "draft",
+      "source_statement": "Sex-restricted sites: ... cervical only in females.",
+      "trigger_col": "iccc2017ExtendedRecode",
+      "trigger_values": ["XIf7 Carcinomas of cervix uteri"],
+      "target_col": "sex",
+      "allowed_values": ["Female"],
+      "description": "DRAFT. Carcinoma of the cervix uteri occurs only in females. Repair resamples sex, so it shifts the sex marginal slightly."
+    }
+  ],
+  "checks": [
+    {
+      "id": "S2.1",
+      "name": "age_retinoblastoma",
+      "family": "age_implausible_diagnoses",
+      "status": "draft",
+      "kind": "distribution",
+      "source_statement": "retinoblastoma, hepatoblastoma, and neuroblastoma concentrated in early childhood",
+      "description": "DRAFT. Age distribution of retinoblastoma compared with the real age distribution. 'Concentrated in early childhood' has no stated cut-off, so no hard rule is defined.",
+      "group_col": "iccc2017ExtendedRecode",
+      "group_values": ["V RETINOBLASTOMA"],
+      "target_col": "ageRecode19Groups",
+      "generation": "No constraint. Use targets.joints with cliques [[ageRecode19Groups, iccc2017ExtendedRecode]] and a verified SEER*Stat cross-tab."
+    },
+    {
+      "id": "S2.2",
+      "name": "age_hepatoblastoma",
+      "family": "age_implausible_diagnoses",
+      "status": "draft",
+      "kind": "distribution",
+      "source_statement": "retinoblastoma, hepatoblastoma, and neuroblastoma concentrated in early childhood",
+      "description": "DRAFT. Age distribution of hepatoblastoma compared with the real age distribution.",
+      "group_col": "iccc2017ExtendedRecode",
+      "group_values": ["VIIa1 Hepatoblastoma"],
+      "target_col": "ageRecode19Groups",
+      "generation": "No constraint. Use targets.joints with cliques [[ageRecode19Groups, iccc2017ExtendedRecode]] and a verified SEER*Stat cross-tab."
+    },
+    {
+      "id": "S2.3",
+      "name": "age_neuroblastoma",
+      "family": "age_implausible_diagnoses",
+      "status": "draft",
+      "kind": "distribution",
+      "source_statement": "retinoblastoma, hepatoblastoma, and neuroblastoma concentrated in early childhood",
+      "description": "DRAFT. Age distribution of neuroblastoma and ganglioneuroblastoma compared with the real age distribution.",
+      "group_col": "iccc2017ExtendedRecode",
+      "group_values": ["IVa Neuroblastoma and ganglioneuroblastoma"],
+      "target_col": "ageRecode19Groups",
+      "generation": "No constraint. Use targets.joints with cliques [[ageRecode19Groups, iccc2017ExtendedRecode]] and a verified SEER*Stat cross-tab."
+    },
+    {
+      "id": "S2.4",
+      "name": "age_hodgkin",
+      "family": "age_implausible_diagnoses",
+      "status": "draft",
+      "kind": "distribution",
+      "source_statement": "Hodgkin lymphoma, bone sarcomas, and thyroid carcinoma rising through adolescence",
+      "description": "DRAFT. Age distribution of Hodgkin lymphoma compared with the real age distribution.",
+      "group_col": "iccc2017ExtendedRecode",
+      "group_values": ["IIa Hodgkin lymphomas"],
+      "target_col": "ageRecode19Groups",
+      "generation": "No constraint. Use targets.joints with cliques [[ageRecode19Groups, iccc2017ExtendedRecode]] and a verified SEER*Stat cross-tab."
+    },
+    {
+      "id": "S2.5",
+      "name": "age_bone_tumors",
+      "family": "age_implausible_diagnoses",
+      "status": "draft",
+      "kind": "distribution",
+      "source_statement": "Hodgkin lymphoma, bone sarcomas, and thyroid carcinoma rising through adolescence",
+      "description": "DRAFT. Age distribution of malignant bone tumors (ICCC major group VIII, the closest CTC variable to 'bone sarcomas') compared with the real age distribution.",
+      "group_col": "icccMajor",
+      "group_values": ["VIII. Malignant Bone Tumors"],
+      "target_col": "ageRecode19Groups",
+      "generation": "No constraint. Use targets.joints with cliques [[ageRecode19Groups, icccMajor]] and a verified SEER*Stat cross-tab."
+    },
+    {
+      "id": "S2.6",
+      "name": "age_thyroid",
+      "family": "age_implausible_diagnoses",
+      "status": "draft",
+      "kind": "distribution",
+      "source_statement": "Hodgkin lymphoma, bone sarcomas, and thyroid carcinoma rising through adolescence",
+      "description": "DRAFT. Age distribution of thyroid carcinoma compared with the real age distribution.",
+      "group_col": "iccc2017ExtendedRecode",
+      "group_values": ["XIb Thyroid carcinomas"],
+      "target_col": "ageRecode19Groups",
+      "generation": "No constraint. Use targets.joints with cliques [[ageRecode19Groups, iccc2017ExtendedRecode]] and a verified SEER*Stat cross-tab."
+    },
+    {
+      "id": "S2.7",
+      "name": "age_outlier_flag",
+      "family": "age_implausible_diagnoses",
+      "status": "draft",
+      "kind": "age_outlier",
+      "source_statement": "a flag for any diagnosis more than two standard deviations outside its real age distribution",
+      "description": "DRAFT. Share of records whose age lies more than sd_threshold standard deviations from the mean age of their diagnosis group in the real data, compared with the same share in the real data. Ages are the midpoints of the CTC age groups, so this is coarse. Needs a real reference.",
+      "group_col": "iccc2017ExtendedRecode",
+      "age_col": "ageRecode19Groups",
+      "sd_threshold": 2.0,
+      "generation": "No constraint. A flag, not a repair."
+    },
+    {
+      "id": "S3.3",
+      "name": "radiation_precursor_leukemia",
+      "family": "diagnosis_treatment_coherence",
+      "status": "draft",
+      "kind": "distribution",
+      "source_statement": "no radiation for the large majority of standard-risk ALL",
+      "description": "DRAFT. Radiation recode among precursor cell leukemias (the closest CTC group to ALL) compared with the real data. The share with 'None/Unknown' is reported. CTC has no risk group, so standard-risk ALL cannot be isolated, and 'None/Unknown' mixes no radiation with unknown.",
+      "group_col": "iccc2017ExtendedRecode",
+      "group_values": ["Ia1 Precursor cell leukemias"],
+      "target_col": "radiationRecode",
+      "focus_values": ["None/Unknown"],
+      "generation": "No constraint. 'Large majority' has no stated cut-off. Use targets.joints on [radiationRecode, iccc2017ExtendedRecode] with a verified cross-tab."
+    },
+    {
+      "id": "S3.4",
+      "name": "transplant_by_diagnosis",
+      "family": "diagnosis_treatment_coherence",
+      "status": "draft",
+      "kind": "distribution",
+      "source_statement": "stem cell transplant concentrated in high-risk neuroblastoma, relapsed leukemia, and selected lymphomas",
+      "description": "DRAFT. Among records with a transplant code in RX Summ--Transplnt/Endocr, the distribution over ICCC major group compared with the real data. CTC has no neuroblastoma risk group and no relapse flag, so only the diagnosis group can be examined.",
+      "group_col": "rxSummTransplntEndocr",
+      "group_values": [
+        "Bone marrow transplant procedure was administered, but the type was not specified.",
+        "Bone marrow transplant-autologous",
+        "Bone marrow transplant-allogeneic",
+        "Stem cell harvest and infusion"
+      ],
+      "target_col": "icccMajor",
+      "generation": "No constraint. Use targets.joints on [rxSummTransplntEndocr, icccMajor] with a verified cross-tab."
+    },
+    {
+      "id": "S4.1",
+      "name": "survival_decreases_with_stage",
+      "family": "stage_risk_outcome_monotonicity",
+      "status": "draft",
+      "kind": "stage_monotone",
+      "source_statement": "survival should decrease with stage or risk group within each diagnosis",
+      "description": "DRAFT. Within each ICCC major group, five-year survival by Combined Summary Stage should not rise from localized to regional to distant. Reports how many groups break the order. Needs time and event columns, which exist only when the survival rule ran. The ordering of the stage labels is our reading and needs clinician confirmation. CTC has no risk group, so only stage is checked.",
+      "group_col": "icccMajor",
+      "stage_col": "combinedSsPubDetailed",
+      "stage_order": [
+        ["Localized only"],
+        [
+          "Regional by direct extension only",
+          "Regional lymph nodes involved only",
+          "Regional by both direct extension and lymph node involvement",
+          "Regional, NOS"
+        ],
+        ["Distant site(s)/node(s) involved"]
+      ],
+      "time_col": "months",
+      "event_col": "event",
+      "horizon_months": 60,
+      "generation": "No constraint. Survival is generated per group by targets.survival; to follow stage it needs group_col combinedSsPubDetailed with verified specs, which would change the survival grouping."
+    },
+    {
+      "id": "S4.2",
+      "name": "five_year_survival_all",
+      "family": "stage_risk_outcome_monotonicity",
+      "status": "draft",
+      "kind": "survival_5y",
+      "source_statement": "5-year survival by diagnosis should match SEER*Stat (e.g., ALL around 90%, ...)",
+      "description": "DRAFT. Five-year Kaplan-Meier survival among precursor cell leukemias (closest CTC group to ALL) compared with the real data or, if none is given, with the unverified read-ahead figure. The population (age range, era) is not defined in the read-ahead and must be fixed by the Input team.",
+      "group_col": "iccc2017ExtendedRecode",
+      "group_values": ["Ia1 Precursor cell leukemias"],
+      "time_col": "months",
+      "event_col": "event",
+      "horizon_months": 60,
+      "target": {
+        "value": 0.9,
+        "verification": "UNVERIFIED figure quoted as 'around 90%' in the read-ahead; check target only, never a generation parameter"
+      },
+      "generation": "No constraint. Use targets.survival with a verified spec for this group."
+    }
+  ],
+  "roadmap": [
+    {
+      "id": "S1.1",
+      "family": "sex_restricted_sites",
+      "statement": "testicular germ cell tumors only in males",
+      "reason": "CTC has no testis or ovary category. ICCC group Xc (gonadal germ cell tumors) mixes both sexes. Primary Site (primarySite) and histology (histologicTypeIcdO3) are CTC columns but have no published value list, so they are not generated.",
+      "needs": "A published value list for primarySite, or a testis-versus-ovary split in the ICCC variables."
+    },
+    {
+      "id": "S1.2",
+      "family": "sex_restricted_sites",
+      "statement": "ovarian only in females",
+      "reason": "Same as S1.1: no ovary category in the generated CTC variables.",
+      "needs": "A published value list for primarySite."
+    },
+    {
+      "id": "S3.1",
+      "family": "diagnosis_treatment_coherence",
+      "statement": "asparaginase and vincristine-heavy regimens with acute lymphoblastic leukemia",
+      "reason": "CTC records chemotherapy only as yes or no/unknown (rxSummChemoRecode). Drug names live in pharmacy claims (PHARM), which are a separate table.",
+      "needs": "Linked PHARM and CTC (Option B)."
+    },
+    {
+      "id": "S3.2",
+      "family": "diagnosis_treatment_coherence",
+      "statement": "cisplatin with germ cell tumors and hepatoblastoma",
+      "reason": "Same as S3.1: no drug names in CTC.",
+      "needs": "Linked PHARM and CTC (Option B)."
+    },
+    {
+      "id": "S4.3",
+      "family": "stage_risk_outcome_monotonicity",
+      "statement": "high-risk neuroblastoma around 50%",
+      "reason": "CTC has no neuroblastoma risk group. Only neuroblastoma overall (ICCC IVa) is available.",
+      "needs": "A risk group variable, probably from COG data (Option B)."
+    },
+    {
+      "id": "S5.1",
+      "family": "temporal_ordering",
+      "statement": "diagnosis before COG enrollment before first chemotherapy claim before first pharmacy fill",
+      "reason": "Needs COG enrollment, claim and fill dates in four tables. CTC holds only month-from-diagnosis bins for first-course treatment.",
+      "needs": "Linked COG, MCP and PHARM tables with event dates (Option B)."
+    },
+    {
+      "id": "S5.2",
+      "family": "temporal_ordering",
+      "statement": "central line placement near treatment start",
+      "reason": "Central line procedures are claims in MCP. CTC has no procedure dates.",
+      "needs": "Linked MCP and CTC (Option B)."
+    },
+    {
+      "id": "S5.3",
+      "family": "temporal_ordering",
+      "statement": "no encounters, claims, or fills after date of death",
+      "reason": "Needs claim and fill dates plus a date of death. CTC has vital status but no date of death in the generated variables, and no claim tables.",
+      "needs": "Linked MCD, MCP, PHARM and CTC with dates (Option B)."
+    },
+    {
+      "id": "S5.4",
+      "family": "temporal_ordering",
+      "statement": "insurance coverage overlapping treatment dates",
+      "reason": "Enrollment is in MCE and treatment dates are in claims. Not in CTC.",
+      "needs": "Linked MCE and claims tables (Option B)."
+    },
+    {
+      "id": "S6.1",
+      "family": "era_effects",
+      "statement": "protocol names, targeted agents, and immunotherapies appearing only in diagnosis years when they existed",
+      "reason": "Year of Diagnosis (yearOfDiagnosis) is a CTC column but has no published value list, so it is not generated. No list of which protocols and agents existed in which years exists in the project. CTC has no protocol or agent names.",
+      "needs": "A yearOfDiagnosis value list, an era table for agents, and drug-level data (PHARM)."
+    },
+    {
+      "id": "S6.2",
+      "family": "era_effects",
+      "statement": "survival improving across treatment eras",
+      "reason": "Needs yearOfDiagnosis in the cohort. It is not generated today.",
+      "needs": "A yearOfDiagnosis value list and survival by year of diagnosis from SEER*Stat. After that this becomes a check on the CTC table."
+    },
+    {
+      "id": "S7.1",
+      "family": "utilization_shape",
+      "statement": "inpatient-heavy claims during induction, tapering through maintenance",
+      "reason": "Needs claim-level utilization over time (MCD, MCP). CTC has no claims.",
+      "needs": "Claims tables with service dates (Option B)."
+    },
+    {
+      "id": "S7.2",
+      "family": "utilization_shape",
+      "statement": "survivorship pattern of periodic surveillance visits",
+      "reason": "Needs repeated visit data over time. Not in CTC.",
+      "needs": "Claims tables with service dates (Option B)."
+    },
+    {
+      "id": "S7.3",
+      "family": "utilization_shape",
+      "statement": "antiemetic and growth-factor fills clustered around chemotherapy cycles",
+      "reason": "Needs pharmacy fills and chemotherapy dates (PHARM, MCP).",
+      "needs": "Linked PHARM and MCP (Option B)."
+    },
+    {
+      "id": "S8.1",
+      "family": "late_effects",
+      "statement": "cardiac diagnoses more frequent after anthracycline exposure",
+      "reason": "Needs anthracycline exposure (PHARM) and cardiac diagnoses (MCD) linked per patient. CTC has neither.",
+      "needs": "Linked PHARM, MCD and CTC (Option B)."
+    },
+    {
+      "id": "S8.2",
+      "family": "late_effects",
+      "statement": "secondary malignancies rising with time since radiation",
+      "reason": "CTC has sequence number and months from index diagnosis to tumor, but no radiation date relative to the second tumor, and only first-course radiation. The interval the statement needs cannot be formed.",
+      "needs": "Radiation Oncology (RO) dates linked to CTC (Option B), or a clinician-agreed proxy from CTC columns."
+    }
+  ]
+}
