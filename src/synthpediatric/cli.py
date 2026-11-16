@@ -261,6 +261,12 @@ def _print_fidelity(d: DataDictionary, df: pd.DataFrame) -> None:
     print(f"\n{PROVENANCE_STATEMENT}")
 
 
+def cmd_validate(args: argparse.Namespace) -> int:
+    from .validate import run_cli
+
+    return run_cli(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="synthpediatric",
@@ -334,6 +340,27 @@ def build_parser() -> argparse.ArgumentParser:
     p_eval.add_argument("cohort", help="path to a generated .csv or .parquet cohort")
     _add_rdf_opts(p_eval)
     p_eval.set_defaults(func=cmd_evaluate)
+
+    p_val = sub.add_parser(
+        "validate", help="compare synthetic cohort(s) with a real cohort (discriminator AUC etc.)"
+    )
+    p_val.add_argument("real", help="real cohort .csv/.parquet")
+    p_val.add_argument(
+        "synthetic", nargs="+", help="synthetic cohort file(s); several files = replicates"
+    )
+    p_val.add_argument(
+        "--dictionary", help="optional context: dictionary JSON, generation config, .ttl or remote"
+    )
+    p_val.add_argument("--label", required=True, help="run label for the history, e.g. v0")
+    p_val.add_argument("--out-dir", required=True, help="directory for the report files")
+    p_val.add_argument("--history", help="history CSV (default: <out-dir>/history.csv)")
+    p_val.add_argument("--seed", type=int, default=0, help="seed for the discriminator")
+    p_val.add_argument("--min-count", type=int, default=16, help="suppress counts below this")
+    p_val.add_argument("--folds", type=int, default=5, help="discriminator CV folds")
+    p_val.add_argument("--metrics", help="comma-separated metric names (default: all)")
+    p_val.add_argument("--exclude", help="comma-separated columns to leave out (e.g. IDs)")
+    _add_rdf_opts(p_val)
+    p_val.set_defaults(func=cmd_validate)
 
     return parser
 
