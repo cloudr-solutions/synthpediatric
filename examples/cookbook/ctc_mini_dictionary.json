@@ -3,7 +3,7 @@
   "source": "CTC",
   "version": "cookbook",
   "n_records": null,
-  "notes": "Illustrative, for recipe g only. It uses the CTC variable names and category labels that examples/ctc_consistency_rules.json expects. ICCC counts are the public figures from examples/nccr_ctc_dictionary.json; every other frequency is a placeholder. Not real patient data.",
+  "notes": "Illustrative, for recipe g only. It uses the CTC variable names and category labels that examples/ctc_consistency_rules_label.json expects. ICCC counts are the public figures from examples/nccr_ctc_dictionary.json; every other frequency is a placeholder. Not real patient data.",
   "variables": [
     {"name": "sex", "label": "Sex", "type": "categorical", "values": [
       {"value": "Male", "count": 796000}, {"value": "Female", "count": 678368}]},

@@ -34,6 +34,7 @@ distribution. ``Context.strict`` (config ``strict:``) decides whether a bad refe
 
 from __future__ import annotations
 
+import difflib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
@@ -521,6 +522,46 @@ def _apply_conditional(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
     return apply(ctx, p)
 
 
+def repair_target_errors(
+    constraint: Any, variables: Mapping[str, Any], where: str, source: str = "inline"
+) -> List[str]:
+    """Messages for each value an ``allowed_values`` rule repairs to that is not a permissible
+    value of the target column. Values are compared in the run's value mode (a label in label
+    mode, the notation in code mode). Labels with line breaks must match exactly."""
+    allowed = getattr(constraint, "allowed_values", None)
+    vm = variables.get(getattr(constraint, "target_col", None))
+    if not allowed or vm is None:  # another rule type, repair_to_null, or an absent column
+        return []
+    var = constraint.target_col
+    cats = _cats(vm)
+    note = f" in constraint '{constraint.name}'"
+    if source != "inline":
+        note += f" of {source}"
+    note += (
+        f" (not a permissible value of '{var}'; copy it exactly from the dictionary, or use "
+        "repair_to_null if the variable has no not-applicable code)"
+    )
+    out = []
+    for value in allowed:
+        if str(value) in cats:
+            continue
+        extra = note
+        # difflib misses a short label against a long one ('Not applicable' vs the X8 label)
+        names = [str(c) for c in cats]
+        if not difflib.get_close_matches(str(value), names, n=1):
+            starts = [c for c in names if c.lower().startswith(str(value).lower())]
+            if starts:
+                extra += f" (Did you mean '{starts[0]}'?)"
+        out.append(unknown_message(f"{where}.allowed_values", "category", value, cats, extra))
+    return out
+
+
+def _check_repair_targets(ctx: Context, constraint: Any, where: str, source: str) -> None:
+    variables = {**ctx.dictionary.variables, **ctx.base_dictionary.variables}
+    for message in repair_target_errors(constraint, variables, where, source):
+        _flag(ctx, message, "rule kept as written")
+
+
 def _apply_constraints(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
     from .constraints import RuleSet
 
@@ -558,6 +599,7 @@ def _apply_constraints(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
                 break
         else:
             usable.append(constraint)
+            _check_repair_targets(ctx, constraint, f"{where}[{i}]", source)
     ruleset.constraints = usable
     ctx.ruleset = ruleset
     return {"source": source, "n_constraints": len(ruleset.constraints)}

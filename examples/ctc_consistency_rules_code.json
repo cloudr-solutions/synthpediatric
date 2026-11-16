@@ -1,0 +1,69 @@
+{
+  "_comment": "CODE VARIANT of ctc_consistency_rules.json, for value_mode code (cells hold the NCCR notation). Same rules, values written as codes: sex 2 is Female, icccMajor 05 is V. Retinoblastoma, ageRecode19Groups 00/01/02 are 00 years, 01-04 years and 05-09 years. The five Gleason variables repair a female record to their own not-applicable code X8 from the NCCR metadata. psaLabValueRecode repairs to NULL (blank) because its metadata has no not-applicable code (XX.9 means not documented, not assessed or unknown, which is a real answer).",
+  "max_iterations": 5,
+  "constraints": [
+    {
+      "type": "allowed_values",
+      "name": "gleason_clinical_score_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["2"],
+      "target_col": "gleasonScoreClinicalRecode",
+      "allowed_values": ["X8"],
+      "description": "Gleason score (prostate) does not apply to female patients: X8."
+    },
+    {
+      "type": "allowed_values",
+      "name": "gleason_pathologic_score_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["2"],
+      "target_col": "gleasonScorePathologicRecode",
+      "allowed_values": ["X8"],
+      "description": "Gleason score (prostate) does not apply to female patients: X8."
+    },
+    {
+      "type": "allowed_values",
+      "name": "gleason_clinical_pattern_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["2"],
+      "target_col": "gleasonPatternClinicalRecode",
+      "allowed_values": ["X8"],
+      "description": "Gleason pattern (prostate) does not apply to female patients: X8."
+    },
+    {
+      "type": "allowed_values",
+      "name": "gleason_pathologic_pattern_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["2"],
+      "target_col": "gleasonPatternPathologicRecode",
+      "allowed_values": ["X8"],
+      "description": "Gleason pattern (prostate) does not apply to female patients: X8."
+    },
+    {
+      "type": "allowed_values",
+      "name": "gleason_tertiary_pattern_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["2"],
+      "target_col": "gleasonTertiaryPattern",
+      "allowed_values": ["X8"],
+      "description": "Gleason tertiary pattern (prostate) does not apply to female patients: X8."
+    },
+    {
+      "type": "allowed_values",
+      "name": "psa_is_male_only",
+      "trigger_col": "sex",
+      "trigger_values": ["2"],
+      "target_col": "psaLabValueRecode",
+      "repair_to_null": true,
+      "description": "PSA (prostate-specific antigen) does not apply to female patients. The metadata has no not-applicable code for PSA, so the cell is left blank."
+    },
+    {
+      "type": "allowed_values",
+      "name": "retinoblastoma_is_early_childhood",
+      "trigger_col": "icccMajor",
+      "trigger_values": ["05"],
+      "target_col": "ageRecode19Groups",
+      "allowed_values": ["00", "01", "02"],
+      "description": "Retinoblastoma occurs almost exclusively in early childhood (typically under 5)."
+    }
+  ]
+}

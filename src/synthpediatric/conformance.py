@@ -92,20 +92,31 @@ def report_lines(report: Dict[str, Any], limit: int = 8) -> List[str]:
 
 
 def conformance_report(dictionary: DataDictionary, df: pd.DataFrame) -> pd.DataFrame:
-    """Count out-of-vocabulary values per variable in a generated cohort."""
+    """Count out-of-vocabulary values per variable in a generated cohort.
+    A NULL (blank) is never out of vocabulary. When any scored column contains nulls, an
+    ``n_null`` column reports their count per variable; with no nulls the output is
+    unchanged.
+    """
     rows = []
+    any_null = False
     for name, vm in dictionary.variables.items():
         if name not in df.columns:
             continue
         permissible = {str(c) for c in vm.categories}
+        is_null = df[name].isna()
+        n_null = int(is_null.sum())
+        any_null = any_null or n_null > 0
         col = df[name].astype(str)
-        bad = ~col.isin(permissible)
+        bad = ~col.isin(permissible) & ~is_null
         n_bad = int(bad.sum())
         examples = sorted(col[bad].unique())[:5] if n_bad else []
         rows.append(
-            {"variable": name, "n_out_of_vocabulary": n_bad, "examples": examples}
+            {"variable": name, "n_out_of_vocabulary": n_bad, "examples": examples,
+             "n_null": n_null}
         )
-    return pd.DataFrame(rows, columns=["variable", "n_out_of_vocabulary", "examples"])
+    cols = ["variable", "n_out_of_vocabulary", "examples"] + (["n_null"] if any_null else [])
+    all_cols = ["variable", "n_out_of_vocabulary", "examples", "n_null"]
+    return pd.DataFrame(rows, columns=all_cols)[cols]
 
 
 def assert_conformant(dictionary: DataDictionary, df: pd.DataFrame) -> None:

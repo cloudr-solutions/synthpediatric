@@ -496,9 +496,106 @@ before. Put `strict: true` in one to turn the checks on.
 
 ### Still not checked
 
-- `allowed_values` and `trigger_values` labels inside a constraints file (a repair target such
-  as `Not applicable` is legitimately not in the dictionary).
+- `trigger_values` labels inside a constraints file. (`allowed_values` repair targets are
+  checked: see the next section.)
 - A `time_col` / `event_col` that has the same name as an existing column overwrites it.
 - Only the first mistake is reported per run; fix it and run again to see the next.
 - Data values: a dictionary that is itself wrong (for example the wrong metadata `source`) is
   not detected.
+
+## Not applicable values: use the metadata code, or null
+
+Some variables only apply to part of the cohort, for example prostate markers (Gleason, PSA).
+A consistency rule has to put something in those cells for the other records. Use the
+variable's own not-applicable code from the metadata. Leave the cell blank (NULL) only when
+the variable has none. Do not invent a label such as `Not applicable`: it is not a permissible
+value, so every such cell is out of vocabulary. On 20,000 CTC records that happened 12,187
+times per prostate variable and pushed each variable's TV distance to about 0.61.
+
+In the real CTC metadata:
+
+- The five Gleason variables (`gleasonPatternClinicalRecode`, `gleasonPatternPathologicRecode`,
+  `gleasonScoreClinicalRecode`, `gleasonScorePathologicRecode`, `gleasonTertiaryPattern`) each
+  have code `X8`, label `Not applicable: Information not collected for this case`. The label of
+  `gleasonTertiaryPattern` also contains a line break and a note about edit errors.
+- `psaLabValueRecode` has no not-applicable code. Its only null-type code, `XX.9` ("Not
+  documented; not assessed; unknown"), is a real answer for a patient who was tested, so it
+  would be wrong for a female record.
+
+```json
+[
+  {
+    "type": "allowed_values",
+    "name": "gleason_clinical_score_is_male_only",
+    "trigger_col": "sex",
+    "trigger_values": ["Female"],
+    "target_col": "gleasonScoreClinicalRecode",
+    "allowed_values": ["Not applicable: Information not collected for this case"]
+  },
+  {
+    "type": "allowed_values",
+    "name": "psa_is_male_only",
+    "trigger_col": "sex",
+    "trigger_values": ["Female"],
+    "target_col": "psaLabValueRecode",
+    "repair_to_null": true
+  }
+]
+```
+
+In `value_mode: label` the target is the exact label (line breaks included, copied from the
+dictionary). In `value_mode: code` it is the notation, `X8`. `examples/ctc_consistency_rules.json`
+is the label version, `examples/ctc_consistency_rules_code.json` the code version.
+
+`repair_to_null` is an optional key on an `allowed_values` rule, default `false`. With it set,
+`allowed_values` is left out (giving both is an error). Every record whose trigger matches and
+whose target has a value is violating, and the repair sets the target to NULL.
+
+**Strict check of repair targets.** In a strict run (and for `generate --rules`) each
+`allowed_values` label must be a permissible value of its target column, compared exactly in
+the run's value mode. A miss stops the run with a did-you-mean suggestion, so an invented
+`Not applicable` cannot pass silently.
+
+Which file for which dictionary:
+
+| Rules file | Use with | Repairs the prostate variables to |
+|---|---|---|
+| `examples/ctc_consistency_rules.json` | the real CTC metadata, label mode (`--source CTC`) | Gleason: its X8 label; PSA: NULL |
+| `examples/ctc_consistency_rules_code.json` | the real CTC metadata, `value_mode: code` | Gleason: `X8`; PSA: NULL |
+| `examples/ctc_consistency_rules_label.json` | a dictionary that lists `Not applicable`, such as the recipe g mini dictionary | the label `Not applicable` |
+| `examples/nccr_ctc_rules.json` | the offline `examples/nccr_ctc_dictionary.json` | its own labels |
+
+Details:
+
+- **Null as a trigger.** A NULL never matches `trigger_values`, so a rule whose trigger cell is
+  blank is neither a violation nor a crash.
+- **Two rules on one target.** If one wants NULL and another wants a label, they fight until
+  `max_iterations` runs out. Do not pair them on the same column and trigger.
+- **Conformance.** A NULL is never out of vocabulary. When a scored column has any NULL,
+  `conformance.csv` gets an `n_null` column and `manifest.json` gets `coverage_null_counts`
+  (per variable). Runs without NULLs write the same files as before.
+- **Fidelity.** TV distance for a column with NULLs is computed among its non-NULL values. A
+  column that is entirely NULL gets NaN.
+- **Files.** CSV writes a NULL as an empty cell. Parquet stores a real null.
+
+Real numbers: `synthpediatric generate nccr_instances.ttl --source CTC -n 20000 --seed 42
+--rules examples/ctc_consistency_rules.json --evaluate`. 12,187 of the 20,000 records are
+female, and each of the six prostate rules repaired 12,187 records (retinoblastoma: 43). The
+`run` path with `examples/recipe_ctc.yaml` gave identical counts and cohort checks.
+
+| Prostate variable | Before: out of vocabulary | Before: TV distance | After: female cells set | After: out of vocabulary | After: TV distance |
+|---|---|---|---|---|---|
+| gleasonPatternClinicalRecode | 12,187 | 0.609 | 12,187 X8 | 0 | 0.609 |
+| gleasonPatternPathologicRecode | 12,187 | 0.609 | 12,187 X8 | 0 | 0.609 |
+| gleasonScoreClinicalRecode | 12,187 | 0.609 | 12,187 X8 | 0 | 0.609 |
+| gleasonScorePathologicRecode | 12,187 | 0.609 | 12,187 X8 | 0 | 0.609 |
+| gleasonTertiaryPattern | 12,187 | 0.609 | 12,187 X8 | 0 | 0.609 |
+| psaLabValueRecode | 12,187 | 0.609 | 12,187 NULL | 0 | 0.006 |
+
+The out-of-vocabulary count is now zero in the whole cohort, and the mean TV distance over the
+76 published columns went from 0.052 to 0.044. The Gleason TV distance stays at 0.609 for a
+different reason than before: X8 has a published count of zero, so 61% of the records sit on a
+value the published data never uses. Published Gleason values cover only about 0.1% of records,
+so the real data is blank for nearly everyone. A not-applicable fraction for such
+sub-population variables is a separate feature. The PSA column, repaired to NULL, is measured
+among its non-NULL values and matches the published frequencies (0.006).

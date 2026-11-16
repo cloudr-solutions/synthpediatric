@@ -160,7 +160,13 @@ def cmd_generate(args: argparse.Namespace) -> int:
     ruleset: Optional[RuleSet] = None
     if args.rules:
         ruleset = RuleSet.from_json(args.rules)
+        from .rules import repair_target_errors
 
+        for i, constraint in enumerate(ruleset.constraints):
+            for message in repair_target_errors(
+                constraint, d.variables, f"{args.rules}[{i}]", args.rules
+            ):
+                raise SystemExit(f"config error: {message}")
     result = generate(d, n=args.n, rng=args.seed, ruleset=ruleset)
     if mode == "nullify":  # sampled first, blanked at the end, as in `run`
         for name in invented:
