@@ -31,7 +31,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -86,7 +86,8 @@ class Rule:
 RULES: Tuple[Rule, ...] = (
     # --- false positives: look like a null code, are real answers -------------------
     Rule("real_iccc_group", KIND_REAL, r"^(?:[IVX]{2,}|[IVX][a-f]?)[a-f]?\d*(?:\.\d+)*\.?\s",
-         raw=True, note="ICCC group label such as 'Ie Unspecified and other specified leukemias' or "
+         raw=True,
+         note="ICCC group label such as 'Ie Unspecified and other specified leukemias' or "
               "'XII OTHER AND UNSPECIFIED MALIGNANT NEOPLASMS': a diagnostic group, not a null"),
     Rule("real_not_classified", KIND_REAL, r"^not classified by (seer|iccc)",
          note="'Not classified by SEER or in situ' is a group of the ICCC recode"),
@@ -108,7 +109,11 @@ RULES: Tuple[Rule, ...] = (
          note="8888888: the classification has no such level"),
     Rule("na_period", KIND_NOT_APPLICABLE, r"^diagnosed (after|before|prior)", True,
          note="'Diagnosed prior to 2023': the item did not exist for the diagnosis year"),
+    Rule("na_not_paired", KIND_NOT_APPLICABLE, r"^not a paired site", True,
+         note="laterality does not apply to an unpaired site"),
     # --- no data ---------------------------------------------------------------------
+    Rule("no_data_not_provided", KIND_NO_DATA, r"\bnot provided$|^patient not found", True,
+         note="'Enrollment Status not Provided', 'Patient not Found at Time of Linkage'"),
     Rule("no_data_lead", KIND_NO_DATA,
          r"^(no data|not available|recode not available|not coded|not reported|missing\b|"
          r"unable to|not calculated|not known due to missing)",
@@ -118,6 +123,9 @@ RULES: Tuple[Rule, ...] = (
          r"^(it is )?unknown\b|^unspecified or unknown|^not documented|^not stated|"
          r"^not assessed|^no information|^not tested for [^;]*; unknown",
          note="description starts with unknown / not documented / not stated"),
+    Rule("unknown_not_classified", KIND_UNKNOWN,
+         r"^not yet classified|results not in chart", True,
+         note="'Not Yet Classified by NAACCR ...', 'Test ordered, results not in chart'"),
     Rule("unknown_race", KIND_UNKNOWN, r"^non-hispanic unknown race$", True,
          note="a race category that means unknown race"),
     Rule("unknown_trail", KIND_UNKNOWN, r"[/;, ]unknown$|^[^;]*\bremoved unknown$", True,
@@ -468,8 +476,6 @@ NA_REASONS = {
     "suppression_only": "the gap is no larger than what suppressed cells (counts below 16) "
                         "can hide",
     "below_min_share": "the uncovered share is below min_share",
-    "counted_na_code": "a not-applicable code of the variable already carries a published "
-                       "count, so the metadata already says how much is not applicable",
     "set_by_rule": "a marginals, overrides, cohort or oversample rule changed the variable's "
                    "distribution, so the published counts no longer describe it",
     "rule_target": "the variable is a target of the conditional or joints rule",
@@ -480,12 +486,12 @@ NA_REASONS = {
 
 def _pick_na_code(info: Mapping[str, Any]) -> Optional[Any]:
     """The not-applicable code with no published count, best first; None when there is none."""
-    cands = [
-        v for v, k in info["kinds"].items()
-        if k == KIND_NOT_APPLICABLE and v not in info["counted"]
-    ]
+    na = [v for v, k in info["kinds"].items() if k == KIND_NOT_APPLICABLE]
+    cands = [v for v in na if v not in info["counted"]]
     if not cands:
-        return None
+        # Every not-applicable code carries a count. Use the biggest one: its published
+        # share is part of the covered share, so the uncovered share is added to it once.
+        return max(na, key=lambda v: (info["counted"][v], str(v))) if na else None
 
     def rank(v: Any) -> Tuple[int, int, str]:
         d = normalize_description(info["descriptions"].get(v, "")).lower()
@@ -653,11 +659,8 @@ def plan_na_fraction(
             if uncovered < min_share:
                 e["reason"] = "below_min_share"
                 continue
-        if any(k == KIND_NOT_APPLICABLE and v in info["counted"]
-               for v, k in info["kinds"].items()):
-            e["reason"] = "counted_na_code"
-            continue
         code = _pick_na_code(info)
+        e["code_counted"] = code is not None and code in info["counted"]
         e["status"] = "applied"
         e["reason"] = "applied"
         e["code"] = code
@@ -674,6 +677,7 @@ def _entry(
         "status": status, "reason": reason, "setting": setting, "supplied_by": supplied,
         "covered_share": None, "uncovered_share": None, "target_share": 0.0,
         "generated_rows": 0, "generated_share": 0.0, "code": None, "blank": False,
+        "code_counted": False,
         "n_uncounted_codes": info["n_uncounted"],
         "null_codes": sorted(
             str(v) for v, k in info["kinds"].items() if k != KIND_REAL
@@ -685,30 +689,13 @@ def _entry(
 # Reporting helpers (conformance and fidelity that know about the fraction)
 # --------------------------------------------------------------------------- #
 
-def blank_filled_for_conformance(df: Any, d: Any, plan: Optional[NaPlan]) -> Any:
-    """A copy of ``df`` where the blank cells the fraction made hold a permissible value.
-
-    A blank is not an out-of-vocabulary value: the metadata gives these variables no code
-    for it. The conformance check reads every cell as text, so the blanks of the variables
-    that received a deliberate blank are replaced by the variable's first permissible value
-    for the check. Blanks anywhere else still count.
-    """
-    if plan is None or not plan.blank_variables:
-        return df
-    out = df.copy()
-    for name in plan.blank_variables:
-        if name in out.columns and name in d.variables:
-            mask = plan.masks.get(name)
-            if mask is not None:
-                col = out[name].to_numpy(dtype=object, copy=True)
-                col[mask] = d.variables[name].categories[0]
-                out[name] = col
-    return out
-
-
 def fidelity_among_counted(d: Any, df: Any, plan: Optional[NaPlan]) -> Any:
     """Marginal fidelity where each fraction variable is scored on the rows that kept a
-    counted value (the generated not-applicable rows are reported separately)."""
+    counted value (the generated not-applicable rows are reported separately).
+
+    Blank cells need no special care: ``conformance_report`` and ``marginal_fidelity`` leave
+    NULLs out. Rows given a not-applicable code are left out here, because the code has no
+    published count and would otherwise count against the counted values."""
     import pandas as pd
 
     from .dictionary import DataDictionary

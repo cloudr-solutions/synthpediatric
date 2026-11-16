@@ -223,6 +223,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"warning: {msg}")
     print(f"Generated {len(df):,} records -> {path}/  {_table_tag(bundle.get('source'))}")
     _print_labels(bundle["report"], bundle.get("source_policy"))
+    if bundle.get("na_plan") is not None:
+        from .nullcodes import na_summary_lines
+
+        for line in na_summary_lines(bundle["na_plan"].report()):
+            print(line)
     if result.total_repairs:
         print(f"Consistency repairs: {result.total_repairs:,}")
     print("Wrote: cohort, coverage.csv, conformance.csv, fidelity.csv,")
@@ -294,7 +299,8 @@ def cmd_nullcodes(args: argparse.Namespace) -> int:
     codes = nullcodes.collect_codes(graph, args.source)
     if not codes:
         raise SystemExit(f"nullcodes: no permissible values found for source '{args.source}'")
-    data = nullcodes.build_map(codes, overrides, generated_from=args.metadata)
+    origin = args.metadata if sources is None else Path(args.metadata).name
+    data = nullcodes.build_map(codes, overrides, generated_from=origin)
     out = nullcodes.write_map(data, args.out)
     summary = nullcodes.summary_markdown(data)
     if args.summary:
@@ -306,7 +312,8 @@ def cmd_nullcodes(args: argparse.Namespace) -> int:
         f"({', '.join(f'{k} {t[k]:,}' for k in nullcodes.NULL_KINDS)}), {t['real']:,} real."
     )
     print(f"False positives kept real: {len(data['false_positives'])}")
-    print(f"Wrote the map to {out}" + (f" and the summary to {args.summary}" if args.summary else ""))
+    also = f" and the summary to {args.summary}" if args.summary else ""
+    print(f"Wrote the map to {out}{also}")
     return 0
 
 
