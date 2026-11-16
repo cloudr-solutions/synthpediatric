@@ -37,11 +37,16 @@ viz = [
     "matplotlib>=3.6",
     "plotly>=5.20",
 ]
+# Real-vs-synthetic discriminator AUC for `synthpediatric validate`.
+validate = [
+    "scikit-learn==1.5.2",
+]
 # Development: linting and tests.
 dev = [
     "pytest>=7",
     "ruff>=0.6",
     "pyyaml==6.0.3",
+    "scikit-learn==1.5.2",
 ]
 
 [project.scripts]
