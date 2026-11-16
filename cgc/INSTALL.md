@@ -27,7 +27,7 @@ pip download "synthpediatric[yaml,validate]" --find-links wheelhouse \
 pip install --no-index --find-links wheelhouse "synthpediatric[yaml,validate]"   # NOT VERIFIED on Linux
 ```
 
-To build a specific version, run `git checkout <TAG>` (or a commit sha) inside the clone before `pip wheel`. `<TAG>` is a placeholder until a release tag exists. NOT VERIFIED.
+To build a specific version, run `git checkout jamboree-2026-11-16` (or a commit sha) inside the clone before `pip wheel`. NOT VERIFIED with a tag; the same step with a commit sha is the form that was tested.
 
 Set `--python-version` to the CGC Python (`python3 --version`). The wheels must match the CGC Python version and Linux; Mac wheels do not work there. The offline install step was VERIFIED on the Mac with Mac wheels (`uv pip install --offline --no-index --find-links`, Python 3.12), and `measure` then passed its audit.
 

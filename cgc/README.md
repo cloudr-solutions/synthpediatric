@@ -40,10 +40,10 @@ pip install "synthpediatric[yaml,validate] @ git+https://github.com/cloudr-solut
 VERIFIED with uv on Python 3.9, 3.10 and 3.12. To pin a version so both teams run the same code, add `@<ref>` after `.git`, where `<ref>` is a commit sha or a release tag:
 
 ```bash
-pip install "synthpediatric[yaml,validate] @ git+https://github.com/cloudr-solutions/synthpediatric.git@<TAG>"
+pip install "synthpediatric[yaml,validate] @ git+https://github.com/cloudr-solutions/synthpediatric.git@jamboree-2026-11-16"
 ```
 
-`<TAG>` is a placeholder: a release tag will be named here later. Pinning to a commit sha (`baddbea`) was VERIFIED with pip 26.3 on Python 3.10 and 3.12. Pinning to a tag was not run, because no tag exists yet.
+`jamboree-2026-11-16` is the release tag for the version the Jamboree teams share (the nine-source fixes, `measure`, the core `validate`, and this folder). Newer tags will be announced; use the tag your team lead names. Pinning to a commit sha (`baddbea`) was VERIFIED with pip 26.3 on Python 3.10 and 3.12. Pinning to a tag uses the same syntax, but it was not run as written before the tag existed.
 
 **Route B, clone, then install (examples and docs included).**
 
@@ -52,7 +52,7 @@ git clone https://github.com/cloudr-solutions/synthpediatric.git     # VERIFIED
 pip install "./synthpediatric[yaml,validate]"                         # VERIFIED with uv pip, 3.10 and 3.12
 ```
 
-To pin the clone, run `git checkout <TAG>` (or a commit sha) inside `synthpediatric/` before the `pip install` line. NOT VERIFIED.
+To pin the clone, run `git checkout jamboree-2026-11-16` (or a commit sha) inside `synthpediatric/` before the `pip install` line. NOT VERIFIED.
 
 Check the install:
 
