@@ -22,20 +22,35 @@ import json
 import platform as _platform
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 
 from .calibrate import generate_calibrated
 from .config import ConfigError, config_hash, effective_strict, load_config, normalize_config
-from .conformance import conformance_report, coverage_report
+from .conformance import conformance_report, coverage_report, generation_report
 from .dictionary import DataDictionary
-from .evaluate import marginal_fidelity, overall_score
+from .evaluate import fidelity_summary, marginal_fidelity
 from .generate import generate
 from .rules import Context, resolve_rules, run_preflight, run_stage
+from .source_policy import (
+    LINKAGE_STATEMENT,
+    TABLE_LABEL,
+    TABLE_TYPE,
+    loader_value_modes,
+    policy_supplied,
+    resolve_source_policy,
+)
 
 _REMOTE = ("remote", "nccr")
 
 
 def _load_dictionary(cfg: Mapping[str, Any]) -> DataDictionary:
+    """The dictionary as loaded; ``.source_policy`` holds the effective source policy.
+
+    ``cfg`` is the canonical config. It always carries ``value_mode`` and ``no_frequency``,
+    so a caller that knows which of them the user wrote lists them under ``"explicit"``
+    (a collection of key names); what the user set explicitly beats the source policy.
+    """
+    explicit = cfg.get("explicit", ())
     metadata = str(cfg["metadata"])
     is_rdf = metadata.lower() in _REMOTE or metadata.lower().endswith(".ttl")
     if not is_rdf:
@@ -44,12 +59,25 @@ def _load_dictionary(cfg: Mapping[str, Any]) -> DataDictionary:
     source = cfg.get("source")
     if not source:
         raise ConfigError("source: required when loading NCCR RDF metadata (e.g. source: CTC)")
-    from .nccr_rdf import build_dictionary, load_graph
+    from .nccr_rdf import build_dictionary, load_graph, source_columns
 
     sources = None if metadata.lower() in _REMOTE else [metadata]
     graph = load_graph(sources)
+    policy = resolve_source_policy(
+        source,
+        no_frequency=cfg["no_frequency"] if "no_frequency" in explicit else None,
+        value_mode=cfg["value_mode"] if "value_mode" in explicit else None,
+        value_modes=cfg.get("value_modes"),
+        override=cfg.get("source_policy"),
+        columns=source_columns(graph, source),
+    )
     # Always load with the uniform fallback; the `no_frequency` mode is applied below.
-    return build_dictionary(graph, source, value_mode=cfg["value_mode"], no_frequency="uniform")
+    d = build_dictionary(
+        graph, source, value_mode=policy["value_mode"]["value"], no_frequency="uniform",
+        value_modes=loader_value_modes(policy),
+    )
+    d.source_policy = policy
+    return d
 
 
 def _uniform_variables(d: DataDictionary) -> List[str]:
@@ -65,7 +93,7 @@ def _without(d: DataDictionary, names: List[str]) -> DataDictionary:
         raise ConfigError("no_frequency: 'suppress' would remove every variable")
     return DataDictionary(
         name=d.name, source=d.source, version=d.version, n_records=d.n_records,
-        variables=kept, notes=d.notes,
+        variables=kept, notes=d.notes, source_id=d.source_id, skipped=d.skipped,
     )
 
 
@@ -79,10 +107,12 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
     raw = load_config(recipe)
     cfg = normalize_config(raw)
     resolved = resolve_rules(cfg)
-    sha = config_hash(cfg, resolved)
 
-    d = _load_dictionary(cfg)
-    mode = cfg["no_frequency"]
+    explicit = [k for k in ("no_frequency", "value_mode") if raw.get(k) is not None]
+    d = _load_dictionary({**cfg, "explicit": explicit})
+    policy = getattr(d, "source_policy", None)
+    sha = config_hash(cfg, resolved, policy_supplied(policy) if policy else None)
+    mode = policy["no_frequency"]["value"] if policy else cfg["no_frequency"]
     uniform_vars = _uniform_variables(d)
     loaded = d
     if mode == "suppress" and uniform_vars:
@@ -91,7 +121,11 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
     strict = effective_strict(raw, cfg)
     # References are checked against the dictionary as loaded: a suppressed variable has no
     # published frequency, but a marginals/overrides table may still supply one.
-    ctx = Context(config=cfg, dictionary=d, strict=strict, base_dictionary=loaded)
+    ctx = Context(
+        config=cfg, dictionary=d, strict=strict, base_dictionary=loaded, source_policy=policy
+    )
+    if policy:
+        ctx.warnings.extend(policy["warnings"])
     # Every reference in the config is checked against the dictionary here, before any record
     # is sampled; ConfigError reaches the caller before write_run creates a file.
     run_stage(ctx, resolved, "dictionary")
@@ -121,6 +155,8 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
         "oversampling": ctx.oversampling,
         "no_frequency": {"mode": mode, "variables": uniform_vars},
         "nullified": nullified, "input_files": ctx.input_files,
+        "source": loaded.source_id, "source_policy": policy,
+        "report": generation_report(loaded, mode),
     }
 
 
@@ -140,6 +176,13 @@ def _dictionary_to_json(d: DataDictionary) -> Dict[str, Any]:
             for vm in d.variables.values()
         ],
     }
+
+
+def _policy_for_manifest(policy: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The effective policy without its warnings (those are in the manifest's warnings)."""
+    if policy is None:
+        return None
+    return {k: v for k, v in policy.items() if k != "warnings"}
 
 
 def write_run(bundle: Dict[str, Any], out_dir: Union[str, Path], fmt: str = "csv") -> Path:
@@ -174,6 +217,7 @@ def write_run(bundle: Dict[str, Any], out_dir: Union[str, Path], fmt: str = "csv
 
     from . import __version__  # lazy to avoid an import cycle at package init
 
+    summary = fidelity_summary(fidelity)
     cov_counts = coverage["frequency_source"].value_counts().to_dict()
     config = bundle["config"]
     manifest = {
@@ -197,7 +241,17 @@ def write_run(bundle: Dict[str, Any], out_dir: Union[str, Path], fmt: str = "csv
         "n_records": int(len(df)),
         "seed": config["seed"],
         "repairs": result.repairs,
-        "overall_tv_distance": overall_score(fidelity),
+        # Mean TVD over columns with published counts. Invented (uniform) columns are not
+        # scored; the older mean over every column is overall_tv_distance_all_columns.
+        "overall_tv_distance": summary["overall_tv_distance_published"],
+        "overall_tv_distance_all_columns": summary["overall_tv_distance_all_columns"],
+        "fidelity": summary,
+        "table_type": TABLE_TYPE,
+        "table_label": TABLE_LABEL,
+        "source": bundle.get("source"),
+        "linkage": LINKAGE_STATEMENT,
+        "generation_report": bundle["report"],
+        "source_policy": _policy_for_manifest(bundle.get("source_policy")),
         "coverage": {str(k): int(v) for k, v in cov_counts.items()},
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))

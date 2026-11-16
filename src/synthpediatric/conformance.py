@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from typing import Any, Dict, List
+
 import pandas as pd
 
 from .dictionary import DataDictionary
@@ -32,6 +34,61 @@ def coverage_report(dictionary: DataDictionary) -> pd.DataFrame:
         rows, columns=["variable", "label", "type", "n_values", "frequency_source"]
     )
     return report.sort_values(["frequency_source", "variable"], ignore_index=True)
+
+
+def generation_report(
+    loaded: DataDictionary, no_frequency: str = "uniform"
+) -> Dict[str, Any]:
+    """Which variables a run skipped and which it invented, from the dictionary as loaded.
+
+    - ``dropped``: metadata variables that are not columns at all, each with a reason
+      (``no_value_set``: the metadata lists no permissible values, so there is nothing to
+      sample; ``too_few_values``; ``zero_counts``; ``no_counts_excluded``).
+    - ``invented``: columns that have a value set but no published count anywhere. They
+      are filled by a uniform draw (``no_frequency: uniform``), blanked (``nullify``) or
+      removed (``suppress``); ``invented_handling`` says which.
+    - ``published``: columns sampled from published counts.
+    """
+    invented = [
+        n for n, v in loaded.variables.items()
+        if getattr(v, "frequency_source", "published") == "uniform"
+    ]
+    return {
+        "source": loaded.source_id,
+        "published": len(loaded.variables) - len(invented),
+        "dropped": dict(loaded.skipped),
+        "invented": invented,
+        "invented_handling": no_frequency,
+    }
+
+
+def report_lines(report: Dict[str, Any], limit: int = 8) -> List[str]:
+    """Plain-text lines for the CLI summary (long name lists are cut at ``limit``)."""
+    def names(items: List[str]) -> str:
+        shown = ", ".join(items[:limit])
+        return shown if len(items) <= limit else f"{shown}, ... ({len(items)} in total)"
+
+    dropped = report["dropped"]
+    handled = {
+        "uniform": "filled with uniform random values",
+        "nullify": "left blank",
+        "suppress": "removed from the table",
+    }[report["invented_handling"]]
+    lines = [f"Columns sampled from published counts: {report['published']}"]
+    lines.append(
+        f"Dropped (not generated), {len(dropped)}: " + (names(list(dropped)) if dropped else "none")
+    )
+    if dropped:
+        by_reason: Dict[str, int] = {}
+        for reason in dropped.values():
+            by_reason[reason] = by_reason.get(reason, 0) + 1
+        lines.append("  reasons: " + ", ".join(f"{r} {n}" for r, n in sorted(by_reason.items())))
+    invented = report["invented"]
+    lines.append(
+        f"Invented (no published counts), {len(invented)}, {handled}: "
+        + (names(invented) if invented else "none")
+    )
+    return lines
 
 
 def conformance_report(dictionary: DataDictionary, df: pd.DataFrame) -> pd.DataFrame:
