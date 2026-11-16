@@ -267,6 +267,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return run_cli(args)
 
 
+def cmd_measure(args: argparse.Namespace) -> int:
+    from .measure import run_cli
+
+    return run_cli(args)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="synthpediatric",
@@ -361,6 +367,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_val.add_argument("--exclude", help="comma-separated columns to leave out (e.g. IDs)")
     _add_rdf_opts(p_val)
     p_val.set_defaults(func=cmd_validate)
+
+    p_meas = sub.add_parser(
+        "measure",
+        help="run in CGC on real data: export disclosure-controlled aggregates for the generator",
+    )
+    p_meas.add_argument("config", help="measure config (.yaml/.yml or .json)")
+    p_meas.add_argument("--out-dir", default=None, help="output directory (default: outputs.dir)")
+    p_meas.add_argument(
+        "--overwrite", action="store_true", help="replace the results of an earlier measure run"
+    )
+    p_meas.set_defaults(func=cmd_measure)
 
     return parser
 
