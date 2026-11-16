@@ -251,10 +251,15 @@ Look for: the columns of `cohort.csv` and `coverage.csv`.
 | `nullify` | sex, race (all blank) | `nullified` | `{'published': 1, 'nullified': 1}` |
 | `suppress` | sex only | not listed | `{'published': 1}` |
 
-In all three, `manifest.json` lists `race` under `no_frequency.variables`. Overall TV distance
-was 0.0154 for `uniform` (race is scored against a uniform guess) and 0.0051 for the other two
-(race is not scored). Pick `uniform` to keep the column usable, `nullify` to keep the schema
-without inventing values, `suppress` to drop the column.
+In all three, `manifest.json` lists `race` under `no_frequency.variables` and under
+`generation_report.invented`. `overall_tv_distance` is 0.0051 in all three: it averages only
+the columns that have published counts (`sex`), so the invented `race` column cannot improve
+it. Before this was changed the `uniform` run reported 0.0154, because `race` was scored
+against its own uniform target and averaged in. That older all-column mean is still written,
+as `overall_tv_distance_all_columns` (0.0154 for `uniform`, 0.0051 for the other two).
+`fidelity.invented_columns` is 1 for `uniform` and 0 for the other two. Pick `uniform` to keep
+the column usable, `nullify` to keep the schema without inventing values, `suppress` to drop
+the column.
 
 ## g. Consistency rules (constraints)
 

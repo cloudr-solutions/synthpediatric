@@ -46,7 +46,11 @@ n: 50000
 seed: 42
 profile: standard             # marginals_only | standard | full   (default: full)
 value_mode: label             # label | code
+value_modes:                  # optional: label | code for single variables (beats value_mode
+  someVariable: code          #   only for that variable; names are checked against the source)
 no_frequency: uniform         # uniform (default) | nullify | suppress
+source_policy:                # optional: override the built-in defaults for this source
+  survival: allow             # see "Source policy" below
 missingness: none             # none (default) | realistic (reserved, not implemented)
 strict: true                  # true (default) | false: unknown names are errors | warnings
 
@@ -290,15 +294,86 @@ a valid config and gives the same hash.
 | `rules` | every rule in execution order: `name`, `order`, `stage`, `status`, `reason`, `params`, and `details` for applied rules (for `joints`: iterations, deviation, convergence) |
 | `oversampling` | one entry per oversample step: `variable`, `factor`, `factors_applied` (per category), `unmatched_values` (always empty when `strict` is true, because a non-matching label is an error), `proportions_before`, `proportions_after` |
 | `no_frequency` | the mode, and the variables that had no published frequency |
+| `table_type`, `table_label`, `source`, `linkage` | `unlinked_single_source`, a short label, the NCCR source id (null for a JSON dictionary), and the statement that rows cannot be joined across sources (no participant key in the metadata) |
+| `generation_report` | what the run skipped and invented, see "Dropped and invented variables" |
+| `source_policy` | the effective policy: for each setting its value and who supplied it, see "Source policy" (null for a JSON dictionary) |
+| `fidelity` | `published_columns`, `invented_columns`, `overall_tv_distance_published`, `overall_tv_distance_all_columns` |
 | `missingness` | `none` |
 | `validate` | the normalized `validate:` block, or null |
 | `input_files` | SHA-256 of each file the config referenced (rule files, tables, survival specs, cross-tabs) |
 | `strict` | whether unknown names were errors (`true`) or warnings (`false`) in this run |
 | `warnings` | with `strict: false`, every unknown name that was tolerated; also IPF non-convergence |
-| `n_records`, `seed`, `repairs`, `overall_tv_distance`, `coverage` | as before; `coverage` also counts `nullified` |
+| `n_records`, `seed`, `repairs`, `coverage` | as before; `coverage` also counts `nullified` |
+| `overall_tv_distance` | **changed**: mean TV distance over the columns that have published counts. Invented columns are no longer in it |
+| `overall_tv_distance_all_columns` | the old number: mean over every column, invented ones included. For a run with no invented column it equals `overall_tv_distance` |
 
 Oversampling still renames the dictionary with a `[reweighted: ...]` tag; the factors and
 effective proportions now live in the manifest.
+
+## Every output is an unlinked, single-source table
+
+A run generates one NCCR source on its own. **Rows cannot be joined across sources**: the
+published metadata has no participant key (`dataRequestPatientId` is declared only in the
+ERD tooling, not as a variable in `nccr_instances.ttl`), so row 5 of a PHARM table and row
+5 of an MCP table are unrelated, and a join on a row index or an invented id would give
+wrong results. The manifest says so (`table_type`, `source`, `linkage`), and so does the
+CLI summary line (`[unlinked, single-source table: PHARM]`). Per-source notes are in
+[sources.md](sources.md).
+
+## Dropped and invented variables
+
+Every run (`generate` and `run`) reports two lists, in the manifest under
+`generation_report` and in the CLI summary:
+
+- **dropped**: variables of the source that are not columns of the table, each with a
+  reason. `no_value_set`: the metadata gives the variable no permissible values (ids, ICD
+  and procedure codes, NDC, free text), so there is nothing to sample. `too_few_values`:
+  fewer than two distinct values after labels were merged (this is the
+  `scope9802Public` and `recordId` case). `zero_counts` and `no_counts_excluded` are the
+  other two reasons.
+- **invented**: columns that have a value set but no published count for any value (for
+  example the 359 `enrollMonth...` columns of MCE). They are not dropped: `no_frequency`
+  decides what happens, `uniform` fills them with a uniform draw, `nullify` leaves them
+  blank, `suppress` removes them. `invented_handling` records which.
+
+That is how the report tells "no value set" (dropped, never in the table) from "no counts
+anywhere" (invented, in the table unless you blank or remove it).
+
+The overall fidelity score averages only the published columns. Invented columns are still
+listed in `fidelity.csv` (column `frequency_source`) but are not in `overall_tv_distance`,
+because a uniform column scored against its own uniform target is not a match to anything.
+
+## Source policy
+
+Three things depend on the source, so they have documented defaults (in
+`synthpediatric/source_policy.py`) that a config can override.
+
+| Setting | Default for each source | Override |
+|---|---|---|
+| `no_frequency` | `nullify` for MCE (359 of its 361 columns have no counts); `uniform` for the rest | top-level `no_frequency`, or `source_policy.no_frequency` |
+| value mode per variable | PHARM `medicationDispenseDuration` is read in `code` mode (its label is the record count, its code is the day value); `label` for the rest | top-level `value_modes`, `value_mode`, or `source_policy.value_modes` |
+| `survival` | `allow` for CTC, `refuse` for the other eight | `source_policy.survival: allow` (or `refuse`) |
+
+Precedence, highest first: what the config sets explicitly at the top level
+(`no_frequency`, `value_modes`, `value_mode`), then `source_policy:`, then the built-in
+default. An explicit global `value_mode: label` therefore also turns off the PHARM default.
+The manifest records, for each setting, the effective value and who supplied it:
+`config`, `config.source_policy`, `policy` (built-in) or `default` (generic). The config
+hash includes what the built-in policy decided, but only when it decided something, so
+the hash of a CTC run is the same as before policies existed.
+
+**Person table (choice made here).** Survival makes a time and an event per row, which
+only means something when a row is a person with a vital status. Only the CTC registry
+table qualifies. ABM is one row per tumor but holds area measures; COG and MCE are
+enrollment flags; MCD, MCP and PHARM are one row per claim or fill; RO is one row per
+radiation record; CCDI is one row per resource mapping. `targets.survival` on any of
+these is a `ConfigError` unless `source_policy: {survival: allow}` is set. A JSON
+dictionary has no source and no policy, so survival is not refused there.
+
+`value_modes` names are checked when the metadata is loaded, with the same did-you-mean
+message as other names (a typo, or a name that is not a variable of the source, is an
+error). The command line has the same controls: `generate --no-frequency`, `--value-mode`
+and `--var-value-mode NAME=MODE` (repeatable).
 
 ## Reproducibility note
 
@@ -322,6 +397,7 @@ does this against `tests/data/legacy_golden.csv`.
 | Config section | Module |
 |---|---|
 | `metadata`/`source` | `nccr_rdf` (full-coverage loader) |
+| `source_policy`, `value_modes` | `source_policy` (defaults, precedence, survival refusal) |
 | `targets.marginals` / `overrides` | `inputs.override_marginals` |
 | `targets.joints` | `calibrate` (`JointDistribution.from_counts`, `raking_ipf`, `generate_calibrated`) |
 | `targets.survival` | `survival_gen.sample_survival` |
@@ -358,5 +434,17 @@ These were left open and are easy to change.
   `config.effective_strict`; which mistakes are downgradable is decided at each `_flag(...)`
   call in `rules.py` (a call that raises directly is never downgraded).
 - **`__default__`.** Works as the fallback survival spec (`DEFAULT_GROUP` in `rules.py`).
+- **Names for the source work.** Config keys `value_modes` (variable -> `label`|`code`) and
+  `source_policy` (`no_frequency`, `value_modes`, `survival`); manifest fields `table_type`
+  (`unlinked_single_source`), `table_label`, `source`, `linkage`, `generation_report`,
+  `source_policy`, `fidelity`, `overall_tv_distance_all_columns`. CLI: `--var-value-mode`,
+  `generate --no-frequency`.
+- **Person table.** CTC only (see "Source policy"). Change `PERSON_TABLES` and
+  `DEFAULT_POLICIES` in `source_policy.py` to add one.
+- **No value set vs no counts.** The first is `generation_report.dropped` (reason
+  `no_value_set`), the second is `generation_report.invented`.
+- **Score meaning.** `overall_tv_distance` now means published columns only; the old
+  all-columns mean stays as `overall_tv_distance_all_columns`. `overall_score(report)` in
+  Python changed the same way; pass `include_invented=True` for the old mean.
 - **Not built (out of scope).** The Bayesian-network `network:` rule, scenario mode, the
   consistency battery content, validation metrics, and `missingness: realistic`.
