@@ -204,6 +204,8 @@ repaired by resampling). See `examples/ctc_consistency_rules.json`.
 }
 ```
 
+Compare synthetic cohorts with a real one (discriminator AUC and more): [docs/validation.md](docs/validation.md).
+
 ## Privacy posture
 
 - **Metadata-only generation** (the default): derived solely from published aggregate
