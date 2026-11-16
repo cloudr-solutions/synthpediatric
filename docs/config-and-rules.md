@@ -97,6 +97,10 @@ validate:                     # live: see "The `validate:` block" below
   suppression_min: 16         # default 16
 
 outputs: {dir: out/all_cohort, format: csv}
+# Optional, csv only: archive: zip (default none) packs the data CSV, and only it, as the single
+# entry of <archive_name>.zip (default name: source id, else config name, else cohort; the entry is
+# <name>.csv). keep_csv: true (default false) also leaves the bare CSV. The reports stay plain files.
+# outputs: {dir: out/upload, format: csv, archive: zip, archive_name: ctc, keep_csv: false}
 ```
 
 Paths are relative to the working directory. Quote category labels that YAML would read

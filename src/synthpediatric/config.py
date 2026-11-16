@@ -240,12 +240,30 @@ def _validate_block(value: Any) -> Dict[str, Any]:
 
 
 def _outputs_block(value: Any) -> Dict[str, Any]:
-    check_keys("outputs", value, ("dir", "format"))
+    check_keys("outputs", value, ("dir", "format", "archive", "archive_name", "keep_csv"))
     out: Dict[str, Any] = {}
     if "dir" in value:
         out["dir"] = as_str("outputs.dir", value["dir"])
     if "format" in value:
         out["format"] = check_choice("outputs.format", value["format"], OUTPUT_FORMATS)
+    if "archive" in value:
+        out["archive"] = check_choice("outputs.archive", value["archive"], ("none", "zip"))
+        if out["archive"] == "zip" and out.get("format") == "parquet":
+            raise ConfigError(
+                "outputs.archive: 'zip' applies to csv output only, got format 'parquet'. "
+                "Use format: csv, or archive: none"
+            )
+    if "archive_name" in value:
+        name = as_str("outputs.archive_name", value["archive_name"])
+        if "/" in name or "\\" in name:
+            raise ConfigError(f"outputs.archive_name: must be a file name, got {name!r}")
+        out["archive_name"] = name
+    if "keep_csv" in value:
+        if not isinstance(value["keep_csv"], bool):
+            raise ConfigError(
+                f"outputs.keep_csv: expected true or false, got {value['keep_csv']!r}"
+            )
+        out["keep_csv"] = value["keep_csv"]
     return out
 
 

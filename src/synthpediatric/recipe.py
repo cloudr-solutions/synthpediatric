@@ -200,21 +200,48 @@ def _policy_for_manifest(policy: Optional[Mapping[str, Any]]) -> Optional[Dict[s
     return {k: v for k, v in policy.items() if k != "warnings"}
 
 
-def write_run(bundle: Dict[str, Any], out_dir: Union[str, Path], fmt: str = "csv") -> Path:
-    """Write cohort + coverage + conformance + fidelity + dictionary + manifest."""
+def write_run(
+    bundle: Dict[str, Any],
+    out_dir: Union[str, Path],
+    fmt: str = "csv",
+    archive: Optional[str] = None,
+    archive_name: Optional[str] = None,
+    keep_csv: Optional[bool] = None,
+) -> Path:
+    """Write cohort + coverage + conformance + fidelity + dictionary + manifest.
+
+    With ``archive='zip'`` (or ``outputs.archive: zip``) the data CSV is written as the single
+    entry of a zip instead; arguments override the config's ``outputs`` block.
+    """
+    from . import archive as _archive
+
     out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
     d = bundle["dictionary"]
     df = bundle["data"]
     recipe = bundle["recipe"]
     result = bundle["result"]
     nullified = list(bundle.get("nullified", []))
 
-    cohort_path = out / (f"cohort.{ 'parquet' if fmt in ('parquet', 'pq') else 'csv'}")
-    if fmt in ("parquet", "pq"):
-        df.to_parquet(cohort_path, index=False)
+    opts = _archive.outputs_archive_options((bundle["config"] or {}).get("outputs"))
+    mode = _archive.resolve_archive(archive or opts["archive"], fmt)
+    out.mkdir(parents=True, exist_ok=True)
+    archive_info = None
+    if mode == "zip":
+        base = _archive.archive_base(
+            archive_name or opts["archive_name"],
+            bundle.get("source"),
+            bundle["config"].get("name"),
+        )
+        keep = opts["keep_csv"] if keep_csv is None else keep_csv
+        csv_path = out / f"{base}.csv"
+        df.to_csv(csv_path, index=False)
+        archive_info = _archive.zip_csv(csv_path, out / f"{base}.zip", keep)
     else:
-        df.to_csv(cohort_path, index=False)
+        cohort_path = out / (f"cohort.{ 'parquet' if fmt in ('parquet', 'pq') else 'csv'}")
+        if fmt in ("parquet", "pq"):
+            df.to_parquet(cohort_path, index=False)
+        else:
+            df.to_csv(cohort_path, index=False)
 
     # Nullified columns are all-blank by design: report them as such, and leave them out
     # of the conformance/fidelity comparison (blank is not an out-of-vocabulary value).
@@ -269,6 +296,8 @@ def write_run(bundle: Dict[str, Any], out_dir: Union[str, Path], fmt: str = "csv
         "source_policy": _policy_for_manifest(bundle.get("source_policy")),
         "coverage": {str(k): int(v) for k, v in cov_counts.items()},
     }
+    if archive_info is not None:  # only runs with a zip get this key
+        manifest["archive"] = archive_info
     validation = bundle.get("validation")
     if validation is not None:  # only when the config requested metrics: other runs are unchanged
         from .validate import (
