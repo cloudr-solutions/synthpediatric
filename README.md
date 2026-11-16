@@ -40,6 +40,11 @@ pip install -e .            # core: numpy, pandas, pyarrow (Python 3.9+)
 pip install -e ".[rdf]"     # + rdflib, for the NCCR RDF adapter
 pip install -e ".[yaml]"    # + PyYAML, to run YAML configs (JSON configs need nothing extra)
 ```
+Without a clone, install straight from GitHub (needs `git`; `examples/` is not included):
+```bash
+pip install "synthpediatric[yaml] @ git+https://github.com/cloudr-solutions/synthpediatric.git"
+```
+For CGC, including pinning a version and offline installs, see [cgc/README.md](cgc/README.md).
 
 ## Quickstart — any source (JSON dictionary)
 
@@ -206,6 +211,7 @@ repaired by resampling). See `examples/ctc_consistency_rules.json`.
 
 Compare synthetic cohorts with a real one (discriminator AUC and more): [docs/validation.md](docs/validation.md).
 Measure real data in CGC and export disclosure-controlled aggregates the generator reads (Input team): [docs/measure.md](docs/measure.md).
+Install and run it in CGC (verified on macOS only so far): [cgc/README.md](cgc/README.md).
 
 ## Privacy posture
 
