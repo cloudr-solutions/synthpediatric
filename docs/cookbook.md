@@ -298,6 +298,26 @@ rule fields as the JSON file.
 
 ---
 
+## Zip the data for upload
+
+To upload the data, put the cohort CSV in a zip. Add `archive: zip` to `outputs` (or pass
+`--archive zip` to `synthpediatric run`):
+
+```yaml
+outputs: {dir: out/upload, format: csv, archive: zip}
+```
+
+The run writes `<name>.zip` holding exactly one file, `<name>.csv`. The name is
+`outputs.archive_name` if set, else the source id of the run, else the config name (made
+filename-safe), else `cohort`. The reports (`coverage.csv`, `conformance.csv`, `fidelity.csv`,
+`manifest.json`, `dictionary.json`) stay as plain files next to the zip and are not zipped.
+
+The bare CSV is not kept, so the data is stored once. Set `keep_csv: true` (`--keep-csv`) to
+keep both. Archiving applies to CSV only: `format: parquet` with `archive: zip` is an error.
+The zip is deflated, ZIP64, and checked after writing. `manifest.json` gets an `archive`
+block with the zip name, entry name, CSV size, zip size and the SHA-256 of the CSV bytes, so a
+recipient can verify the file after unzipping.
+
 ## Common errors
 
 Config mistakes stop the run before anything is written, with `config error:` and the key

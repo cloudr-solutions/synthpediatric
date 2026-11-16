@@ -199,7 +199,13 @@ def cmd_run(args: argparse.Namespace) -> int:
     outputs = config.get("outputs") or {}
     out_dir = args.out_dir or outputs.get("dir") or "out/run"
     fmt = args.format or outputs.get("format") or "csv"
-    path = write_run(bundle, out_dir, fmt=fmt)
+    try:
+        path = write_run(
+            bundle, out_dir, fmt=fmt, archive=args.archive,
+            archive_name=args.archive_name, keep_csv=True if args.keep_csv else None,
+        )
+    except ConfigError as exc:
+        raise SystemExit(f"config error: {exc}")
 
     df = bundle["data"]
     result = bundle["result"]
@@ -338,6 +344,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser("run", help="run a generation config (YAML or JSON; reproducible)")
     p_run.add_argument("recipe", help="path to a config .yaml/.yml or .json file")
     p_run.add_argument("--out-dir", default=None, help="output dir (default: outputs.dir)")
+    p_run.add_argument(
+        "--archive", choices=("none", "zip"), default=None,
+        help="zip the data CSV (only the CSV, reports stay beside it; default: outputs.archive)",
+    )
+    p_run.add_argument("--archive-name", default=None, help="base name of the zip and its CSV")
+    p_run.add_argument(
+        "--keep-csv", action="store_true", help="with --archive zip, also keep the bare CSV",
+    )
     p_run.add_argument(
         "--format", choices=("csv", "parquet"), default=None,
         help="cohort file format (default: outputs.format, else csv)",
