@@ -46,6 +46,15 @@ TOP_LEVEL_KEYS = (
     "oversample", "constraints", "validate", "outputs",
 )
 LEGACY_TOP_LEVEL_KEYS = tuple(_LEGACY_KEYS)
+VALIDATE_KEYS = (
+    "fidelity", "utility", "privacy", "suppression_min", "real", "holdout", "sensitive",
+    "exclude", "thresholds", "max_records",
+)
+# Mirrors synthpediatric.privacy.THRESHOLDS (kept literal so loading a config stays light).
+PRIVACY_THRESHOLD_KEYS = (
+    "identifiability_max", "nn_distance_ratio_min", "membership_auc_max",
+    "attribute_inference_lift_max",
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -199,7 +208,7 @@ def load_config(source: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
 
 def _validate_block(value: Any) -> Dict[str, Any]:
     """Shape-check the reserved ``validate:`` block. No metric is evaluated here."""
-    check_keys("validate", value, ("fidelity", "utility", "privacy", "suppression_min"))
+    check_keys("validate", value, VALIDATE_KEYS)
     out: Dict[str, Any] = {}
     for key in ("fidelity", "utility", "privacy"):
         items = value.get(key, [])
@@ -209,6 +218,24 @@ def _validate_block(value: Any) -> Dict[str, Any]:
     out["suppression_min"] = as_int(
         "validate.suppression_min", value.get("suppression_min", DEFAULT_SUPPRESSION_MIN), 1
     )
+    # Written only when given, so a block without them keeps its canonical form and hash.
+    for key in ("real", "holdout"):
+        if value.get(key) is not None:
+            out[key] = as_str(f"validate.{key}", value[key])
+    for key in ("sensitive", "exclude"):
+        if value.get(key) is not None:
+            items = value[key]
+            if not isinstance(items, list):
+                raise ConfigError(f"validate.{key}: expected a list of column names, got {items!r}")
+            out[key] = [as_str(f"validate.{key}[{i}]", item) for i, item in enumerate(items)]
+    if value.get("max_records") is not None:
+        out["max_records"] = as_int("validate.max_records", value["max_records"], 30)
+    if value.get("thresholds") is not None:
+        check_keys("validate.thresholds", value["thresholds"], PRIVACY_THRESHOLD_KEYS)
+        out["thresholds"] = {
+            k: as_number(f"validate.thresholds.{k}", v)
+            for k, v in value["thresholds"].items() if v is not None
+        }
     return out
 
 

@@ -7,8 +7,11 @@ means it cannot. Track that number across versions (v0, v1, v2, v3) to show prog
 
 This is the first tier of the scorecard adopted for the Jamboree (read-ahead, accepted
 Oct 28): univariate fidelity, dependency fidelity, the discriminator, a replicate envelope
-and an iteration history. Privacy gates (identifiability, attribute inference,
-nearest-neighbour distance), specific utility and temporal metrics come later.
+and an iteration history. The privacy tier (identifiability, attribute inference,
+nearest-neighbour distance ratio, membership inference) is described in
+[Privacy tier](#privacy-tier), and a recipe can request validation through its
+`validate:` block ([Validation from a config](#validation-from-a-config)). Specific
+utility and temporal metrics come later.
 
 The tool is meant to run **inside the CGC workspace**, where the real participant-level
 NCCR data lives. Only the report files leave CGC; see [What the report contains](#what-the-report-contains).
@@ -23,6 +26,11 @@ Everything else in the package, including the univariate and dependency measures
 module, imports and runs without scikit-learn. Asking for the discriminator without it
 fails with: `The discriminator AUC needs scikit-learn. Install it with: pip install
 "synthpediatric[validate]"`.
+
+**Python 3.14.** The `[validate]` extra cannot be installed on Python 3.14: it pins
+scikit-learn 1.5.2, which has no wheel for 3.14. Use Python 3.10 to 3.13 for the
+discriminator. The rest of this module, including the privacy tier, needs only numpy and
+pandas and runs on 3.14.
 
 ## Run it
 
@@ -67,19 +75,32 @@ read_history("out/validation/history.csv")[["label", "auc"]]
 
 ## Metric names (closed list)
 
-These are the only names accepted by `--metrics` and, once wired, by the `fidelity:` list
-of the `validate:` config block. `synthpediatric.validate.METRIC_NAMES` holds the list
-and `check_metric_names` / `check_validate_block` reject anything else. The `utility`
-and `privacy` lists are empty for now. Wiring the block into `config.py` and the run
-pipeline is deferred to a later change.
+These are the only names accepted by `--metrics` and `--privacy` and by the `fidelity:` and
+`privacy:` lists of the `validate:` config block. `synthpediatric.validate.METRIC_NAMES`
+holds the list and `check_metric_names` / `check_validate_block` reject anything else. The
+`utility` list is empty: no utility metric is built yet.
 
-| Name | What it computes |
-|---|---|
-| `tvd` | total variation distance per categorical variable |
-| `ks` | Kolmogorov-Smirnov distance per numeric variable |
-| `assoc_diff` | pairwise association difference, real vs synthetic |
-| `discriminator_auc` | cross-validated real-vs-synthetic classifier AUC (headline) |
-| `replicate_envelope` | share of real statistics inside the replicate range |
+| Group | Name | What it computes |
+|---|---|---|
+| fidelity | `tvd` | total variation distance per categorical variable |
+| fidelity | `ks` | Kolmogorov-Smirnov distance per numeric variable |
+| fidelity | `assoc_diff` | pairwise association difference, real vs synthetic |
+| fidelity | `discriminator_auc` | cross-validated real-vs-synthetic classifier AUC (headline) |
+| fidelity | `replicate_envelope` | share of real statistics inside the replicate range |
+| privacy | `nn_distance_ratio` | nearest-neighbour distance, synthetic-to-real over real-to-real |
+| privacy | `identifiability` | ADS-GAN identifiability score (Yoon et al. 2020), the proposed release gate |
+| privacy | `attribute_inference` | accuracy of predicting a sensitive field from the synthetic data, against a marginal-only baseline |
+| privacy | `membership_inference` | AUC of a nearest-synthetic-record attack, members against a holdout |
+
+**Names that older docs and examples used.** The Jamboree planning notes listed
+`correlation_difference`, `km_concordance`, `pmse`, `specific:survival_by_treatment`,
+`nn_distance` and `membership_inference`. We kept the closed list as built and changed the
+examples instead: `correlation_difference` is `assoc_diff`, `nn_distance` is
+`nn_distance_ratio`, and `membership_inference` keeps its name. `km_concordance`, `pmse`
+and `specific:...` are specific-utility metrics, out of scope for now, so they are not
+accepted yet and the shipped examples no longer list them (their `utility:` list is
+empty). An unknown name is an error with a did-you-mean hint; see
+[Validation from a config](#validation-from-a-config).
 
 ## The measures
 
@@ -131,6 +152,206 @@ readable result.
 AUC and its fold SD, univariate mean/max, dependency mean/max, envelope share, threshold,
 seed and package version. `read_history` loads it for the v0 to v3 trend at the report-out.
 
+## Privacy tier
+
+Generating from published frequencies uses no individual-level records, so privacy holds
+by design. The tier still measures it, because reviewers and release boards ask for a
+number. All four measures compare a **real participant-level cohort** with the synthetic
+cohort, so they run inside CGC, where the real data lives.
+
+```bash
+synthpediatric validate real.csv syn.csv --label p0 --out-dir out/validation \
+    --metrics tvd --privacy all --holdout holdout.csv --sensitive vital_status
+```
+
+| Argument | Meaning |
+|---|---|
+| `--privacy` | comma-separated privacy metrics, or `all` (default: none) |
+| `--holdout` | real records that were **not** used to build the synthetic data; needed for `membership_inference` |
+| `--sensitive` | comma-separated categorical fields to attack in `attribute_inference`; no default |
+| `--max-records` | sampling cap per cohort for the distance work (default 2,000) |
+
+Python: `validate_cohorts(real, syn, privacy=[...], holdout=df, sensitive=[...],
+thresholds={...}, max_records=2000)`. The result is under `report["privacy"]`.
+
+### Distance
+
+All distance-based measures use a weighted **Gower distance**, which suits records that
+mix categorical and numeric fields. A categorical field contributes 0 when the two values
+are equal and 1 otherwise (a missing value is a value of its own). A numeric field
+contributes `|a - b| / range`, with the range taken from the real cohort and the result
+capped at 1; one missing value contributes 1 and two missing values 0. The distance is the
+weighted mean over fields, so it lies between 0 and 1. A Hamming distance is the special
+case with only categorical fields and equal weights. Fields are weighted equally, except in
+`identifiability` (below).
+
+### The four measures
+
+**Nearest-neighbour distance ratio** (`nn_distance_ratio`). For each synthetic record the
+distance to its nearest real record, averaged; divided by the same average for each real
+record and its nearest *other* real record. Both cohorts are sampled to the same size so
+the ratio is fair.
+
+- About 1: synthetic records are no closer to real individuals than real individuals are
+  to each other. Near 0: synthetic records sit on top of real ones (copying).
+- Also reported: the share of synthetic records identical to a real record, and the share
+  of real records identical to another real record. The second is the natural background
+  rate for a categorical-heavy cohort with few fields.
+- It does not mean: a ratio far above 1 only says the cohorts are far apart, which is a
+  fidelity matter, not a privacy gain.
+
+**Identifiability score** (`identifiability`; Yoon et al. 2020, the ADS-GAN paper). For each
+real record, `d` is the distance to its nearest other real record and `d_hat` the distance
+to its nearest synthetic record. The score is the share of real records with `d_hat < d`
+(strict). Fields are weighted by the inverse of their entropy (computed on the real
+cohort, numeric fields in 10 bins), as in the paper, so a field with rare values counts
+more; a field that never varies gets weight 0. This is the read-ahead's "release gate".
+The wording in the notes ("probability that a synthetic record is closer to a real
+individual than real individuals are to each other") is the paper's definition seen from
+the real record's side; we follow the paper's per-real-record form.
+
+- **The neutral value is about 0.5, not 0.** If the synthetic cohort is an independent draw
+  from the same distribution as the real one, a real record's nearest neighbour among
+  `n - 1` other real and `n` synthetic records is synthetic with probability about
+  `n / (2n - 1)`. The report shows this reference beside the score. A perfect generator
+  therefore scores about 0.5, and scores toward 1 mean synthetic records sit closer to
+  individuals than other individuals do (copying).
+- Ties (distance equal, for example identical categorical records) do not count as
+  closer; their share is reported as `share_ties`. With few categorical fields, many
+  real records are identical to another real record, which pushes the score down. Read the
+  score together with `share_ties` and the identical-record shares above.
+- It does not mean: a score below the reference is not a proof of safety, only that no
+  unusual closeness to individuals was found by this distance.
+
+**Attribute-inference risk** (`attribute_inference`; after Achterberg 2024). The attacker
+knows every field of a real participant except one sensitive field, finds the participant's
+5 nearest synthetic records (unweighted Gower distance over the known fields), and predicts
+the sensitive field by a vote weighted by `1 / (distance + 0.001)`, so an exact match
+dominates. The report gives the accuracy over the real records, the **baseline accuracy**
+(always guess the most common value of the field in the synthetic marginal, with no other
+knowledge) and the `lift`, accuracy minus baseline. Only categorical fields can be
+attacked.
+
+- A lift near 0 means the other fields add nothing beyond the marginal. A strongly
+  positive lift means the synthetic data lets an attacker learn the field.
+- It does not mean: a positive lift is not automatically a leak. If the synthetic data
+  correctly reproduces a population-level relationship (age group and diagnosis, say), an
+  attacker learns it legitimately. A lift also depends on how much the other fields
+  predict the sensitive one in the real population. For an independent field the voting
+  attack is usually a little *less* accurate than the mode guess (negative lift).
+- Which fields count as sensitive is a policy decision; see the decisions below.
+
+**Membership-inference AUC** (`membership_inference`). The attacker scores each record by
+minus its distance to the nearest synthetic record and guesses "member" for high scores.
+The AUC compares a group of **members** (the real cohort given as `real`) with a group of
+**non-members** (the holdout), sampled to the same size. About 0.5 means the attacker
+cannot tell them apart; toward 1 means the synthetic data sits closer to the members.
+
+- It needs a holdout: real records the generator did not use. Without one, the metric is
+  skipped and the report says so.
+- It does not mean: for synthetic data made only from published frequencies, nothing in
+  the generator depends on any individual, so a value near 0.5 is expected by
+  construction. The number is a check, not a discovery.
+
+### Release gate and thresholds
+
+The read-ahead proposes the identifiability score as the release gate, but **no threshold
+has been agreed**, and this tool does not invent one. Thresholds are configurable and
+**unset by default**:
+
+| Config key (under `validate.thresholds`) | Passes when |
+|---|---|
+| `identifiability_max` | identifiability score <= the value |
+| `nn_distance_ratio_min` | ratio >= the value |
+| `membership_auc_max` | membership AUC <= the value |
+| `attribute_inference_lift_max` | the largest lift over the sensitive fields <= the value |
+
+The report has a `thresholds` list (one entry per metric) and a `release_gate` entry (the
+identifiability row). Each shows the measured value, the threshold, and a status: `pass`,
+`fail`, `not computed` (a threshold is set but the metric did not run) or `no threshold
+configured`. **Until the release board agrees a threshold, the measured value is a
+number to look at, not a pass.** The report prints the plain-language interpretation of
+each measure next to its value. Thresholds are available from the config and from Python
+(`thresholds=`); the `validate` command does not take them.
+
+### Sampling cap
+
+Distance work is quadratic in the number of records. Each cohort is sampled (seeded, without
+replacement) to at most `max_records` rows, default 2,000; when cohorts differ in size,
+both are cut to the smaller one, so real-to-real and synthetic-to-real distances are
+computed against equally large reference sets (a bigger reference set always finds closer
+neighbours). Sampling adds noise: the identifiability score from 2,000 records has a
+standard error of about 0.01 to 0.02. A cohort under 30 records is not scored (the metric
+is skipped with that reason). On a development Mac, 60 mixed fields at the cap took about 3
+seconds for all four measures. Raise the cap with `--max-records` or `validate.max_records`
+for a tighter estimate; the work grows with the square of it.
+
+## Validation from a config
+
+A recipe can request validation with a `validate:` block. `synthpediatric run` then
+computes the metrics after generation, writes `validation_report.json` and
+`validation_summary.txt` next to `manifest.json`, and records the headline numbers in the
+manifest under `validation`. A config without `validate:`, or with all three lists empty,
+behaves exactly as before and writes neither file.
+
+```yaml
+validate:
+  fidelity: [tvd, ks, assoc_diff, discriminator_auc]
+  privacy: [nn_distance_ratio, identifiability, attribute_inference, membership_inference]
+  real: /cgc/data/extract_ctc.csv       # participant-level file, available inside CGC
+  holdout: /cgc/data/extract_ctc_holdout.csv
+  sensitive: [vital_status]
+  exclude: [participant_id]
+  thresholds: {identifiability_max: 0.6}   # unset by default; 0.6 is only an example
+  suppression_min: 16
+  max_records: 2000
+```
+
+| Key | Meaning |
+|---|---|
+| `fidelity`, `utility`, `privacy` | lists of metric names from the closed list above (`utility` has none yet) |
+| `real` | path to a real participant-level `.csv` or `.parquet`. **Absent is the normal public situation**: no real data is present |
+| `holdout` | optional path to real records not used to build the synthetic data (membership inference) |
+| `sensitive` | categorical fields to attack in `attribute_inference`; none by default |
+| `exclude` | columns left out of every comparison (identifiers, dates) |
+| `thresholds` | optional gate limits, see [Release gate and thresholds](#release-gate-and-thresholds) |
+| `max_records` | sampling cap for the privacy distances (default 2,000, minimum 30) |
+| `suppression_min` | disclosure threshold (default 16) |
+
+**Without `validate.real`** only the metrics that need no real data can run: `tvd`
+becomes the marginal check against the published frequencies (mean TVD over the columns
+that have published counts, and the worst columns). Every other requested metric is
+listed in the report and the manifest under `skipped`, with the reason. The run also
+prints how many metrics were skipped.
+
+**With `validate.real`** the toolkit runs as for `synthpediatric validate`, with the run's
+cohort as the single synthetic cohort. Two requested metrics can still be skipped, each
+reported with its reason: `replicate_envelope` (it needs at least 2 replicates; use the
+`validate` command with several seeds) and `discriminator_auc` when scikit-learn is not
+installed. Columns blanked by `no_frequency: nullify` are left out of the comparison.
+`membership_inference` is skipped without `holdout`, and `attribute_inference` without
+`sensitive`. A named file that does not exist is an error before anything is generated; a
+real file with fewer than `suppression_min` rows is an error too.
+
+**Metric names** are checked against the closed list before any record is generated. An
+unknown name raises a config error with a hint, for example `validate.privacy[0]: unknown
+metric 'identifiabilty'. Did you mean 'identifiability'? Valid metrics: ...`. Strictness
+follows the config's `strict` setting: with `strict: true` (the default for YAML configs)
+it is an error; with `strict: false` the name is ignored and a warning is added to the
+manifest.
+
+**Manifest.** `manifest["validation"]` holds `report` and `summary` (file names), `mode`
+(`dictionary_only` or `real_reference`), `requested`, `skipped` (metric and reason) and
+`headline`: `mean_tvd_published` (without real data) or `univariate_mean`,
+`dependency_mean_abs_diff`, `discriminator_auc`, and the privacy numbers
+`identifiability`, `nn_distance_ratio`, `attribute_inference_max_lift`, `membership_auc`
+and `release_gate_identifiability` (`pass`, `fail` or `no threshold configured`) when they
+ran. The real file's content is not recorded; its path is in the manifest's `config`.
+
+The reports follow the same disclosure rule as the rest of the module: aggregates only,
+`audit_report` must pass before a file is written, and no category counts appear in the
+privacy section at all.
+
 ## What the report contains
 
 The report is designed to be exported from CGC under the disclosure rule that cells under
@@ -146,6 +367,9 @@ The report is designed to be exported from CGC under the disclosure rule that ce
   at least `min-count` rows);
 - `category_detail`: for the worst categorical variables (up to 10), counts per category
   in the real cohort and in the first synthetic cohort, at most 25 levels each.
+- `privacy`: one number per measure (plus the sampling sizes and the interpretation text),
+  the `thresholds` list and the `release_gate` entry; no category counts and no record
+  values. `skipped` lists every requested metric that was not computed, with the reason.
 
 It never contains a row, a row index, an identifier, or a value from a free-text or
 numeric column. Disclosure control on category-level content:
@@ -214,6 +438,62 @@ for example `lambda s: generate(d, n=5000, rng=s).data` or a `run_recipe` call w
 config's seed overridden. The tool does not run the generator itself, because inside CGC
 the cohorts are usually produced elsewhere and brought in as files, and because a
 validation run should not depend on network access to the NCCR metadata.
+
+### Decisions for the privacy tier and the config wiring
+
+**Distance: weighted Gower** (see [Distance](#distance)). The generator's data is
+categorical-heavy with a few numeric fields, so one distance has to treat both. Gower needs
+no scaling choices beyond the real range, stays in [0, 1], and reduces to Hamming for
+purely categorical records. Euclidean distance on one-hot columns would make a field with
+many levels dominate. Identifiability uses inverse-entropy weights because the paper does;
+the other measures use equal weights, which are easier to explain.
+
+**Identifiability follows the paper's per-real-record form** (strict inequality, ties not
+counted), and the report states the independent-draw reference of about 0.5. We did not
+subtract the reference or rescale the score, so the number is the one other papers report.
+
+**Sensitive fields: a config list with no default.** `validate.sensitive` (or
+`--sensitive`) names the fields. With no list, `attribute_inference` is skipped and the
+report says why. A built-in default would amount to a clinical or policy judgement about
+which fields are sensitive (diagnosis, vital status, race, and so on), which this tool
+should not make. The release board can fix the list in the shared config.
+
+**Attacker model for attribute inference.** A weighted k-nearest-neighbour vote (k = 5)
+over the known fields, using only numpy. It is a simple attacker, so a flat lift is a lower
+bound on risk, not proof of none. A stronger attacker (a trained classifier) would need
+scikit-learn and is not built.
+
+**Membership inference needs a holdout, so it gets its own key, `validate.holdout`.** If
+the generator only ever saw published frequencies, there is no set of members and
+non-members to separate, and a random split of the one real file would give about 0.5
+whatever the synthetic data looked like, which would be a number with no meaning. The
+metric therefore runs only when real records known not to have been used are supplied,
+and is otherwise reported as skipped. In the tests, the "leaky" generator is a copy of the
+real file and the holdout a second real sample.
+
+**`validate.real` is a path, absent means no real data.** It names one participant-level
+file (`.csv` or `.parquet`) readable from where `run` executes; relative paths resolve
+against the working directory, like other paths in the config. The config states a file
+and never the data, and the manifest records the path but not the file's contents or hash.
+Output files are `validation_report.json` (the full report) and `validation_summary.txt`
+(the printable summary), written next to `manifest.json`. The `validate` command keeps its
+own names (`report_<label>.json`, `summary_<label>.txt`, `history.csv`); a `run` does not
+append to a history file, because one run is not an iteration series.
+
+**Sampling caps.** Default 2,000 records per cohort for the quadratic distance work, set by
+`validate.max_records` or `--max-records` (minimum 30), seeded, both cohorts cut to the
+same size (see [Sampling cap](#sampling-cap)). The discriminator keeps its own cap of
+20,000 rows per class.
+
+**Thresholds.** Named by metric and direction (`identifiability_max`, and so on), unset by
+default, with the report showing `no threshold configured` when unset. A pass or fail is
+printed only when the user has chosen a threshold.
+
+**Python 3.14 and the `[validate]` extra.** The extra pins scikit-learn 1.5.2, which has
+no wheel for Python 3.14, so `pip install "synthpediatric[validate]"` cannot be installed
+there. Use Python 3.10 to 3.13 for the discriminator. The privacy tier uses only numpy and
+pandas, so it does not need the extra; asking for `discriminator_auc` in a config there skips that one
+metric with the reason and records a skip, rather than failing the run.
 
 ## Reproducibility and platforms
 

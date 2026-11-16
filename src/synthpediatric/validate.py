@@ -42,11 +42,14 @@ POOLED_LABEL = "(other levels, each below the threshold in both cohorts)"
 # Closed list of metric names, for the reserved ``validate:`` config block.
 # ``tvd`` and ``ks`` switch the univariate distances for categorical and numeric
 # variables; ``assoc_diff`` the pairwise association difference; ``discriminator_auc``
-# the headline classifier AUC; ``replicate_envelope`` the replicate-spread check.
+# the headline classifier AUC; ``replicate_envelope`` the replicate-spread check. The
+# privacy names are computed by ``synthpediatric.privacy``.
 METRIC_NAMES: Dict[str, Tuple[str, ...]] = {
     "fidelity": ("tvd", "ks", "assoc_diff", "discriminator_auc", "replicate_envelope"),
     "utility": (),   # specific-utility metrics are not built yet
-    "privacy": (),   # privacy gates are not built yet
+    "privacy": (
+        "nn_distance_ratio", "identifiability", "attribute_inference", "membership_inference",
+    ),
 }
 DEFAULT_METRICS: Tuple[str, ...] = METRIC_NAMES["fidelity"]
 
@@ -632,11 +635,22 @@ def validate_cohorts(
     n_splits: int = 5,
     top_k: int = 10,
     max_rows_per_class: int = 20000,
+    privacy: Sequence[str] = (),
+    holdout: Optional[pd.DataFrame] = None,
+    sensitive: Sequence[str] = (),
+    thresholds: Optional[Mapping[str, float]] = None,
+    max_records: int = 2000,
 ) -> Dict[str, Any]:
     """Compare ``real`` with one or more synthetic cohorts and return the report dict.
 
     ``synthetic`` is a DataFrame or a list of DataFrames (replicates from different seeds).
     Scalar results are means over the replicates; per-replicate AUCs are listed.
+
+    ``privacy`` names the privacy metrics to add (see ``synthpediatric.privacy``);
+    ``holdout`` holds real records the generator did not use (needed for membership
+    inference), ``sensitive`` the fields to attack, ``thresholds`` optional gate limits
+    (unset by default), ``max_records`` the per-cohort sampling cap for distance work.
+    Metrics that cannot run are listed under ``skipped`` with the reason.
     """
     _check_label(label)
     if min_count < 1:
@@ -645,6 +659,7 @@ def validate_cohorts(
     if not syns:
         raise ValidationError("at least one synthetic cohort is required")
     metrics = DEFAULT_METRICS if metrics is None else check_metric_names(metrics)
+    privacy = check_metric_names(privacy, "privacy")
     if len(real) < min_count:
         raise ValidationError(
             f"the real cohort has {len(real)} rows, below the disclosure threshold {min_count}"
@@ -667,6 +682,7 @@ def validate_cohorts(
         "settings": {
             "seed": seed, "min_count": min_count, "metrics": list(metrics),
             "n_splits": n_splits, "max_rows_per_class": max_rows_per_class,
+            "privacy_metrics": list(privacy),
         },
         "data": {
             "n_real": int(len(real)),
@@ -682,6 +698,7 @@ def validate_cohorts(
             "types": types,
         },
         "disclosure": DISCLOSURE_STATEMENT.format(min_count=min_count),
+        "skipped": [],
     }
 
     uni_tabs = _univariate_table_all(real_c, syn_c, shared, types, metrics)
@@ -758,6 +775,16 @@ def validate_cohorts(
         ]
         report["replicate_envelope"] = replicate_envelope(real_stats, rep_stats, top_k)
 
+    if privacy:
+        from .privacy import privacy_report
+
+        priv = privacy_report(
+            real, syns, shared, types, metrics=privacy, holdout=holdout, sensitive=sensitive,
+            thresholds=thresholds, max_records=max_records, seed=seed,
+        )
+        report["privacy"] = priv["privacy"]
+        report["skipped"].extend(priv["skipped"])
+
     audit_report(report, min_count)
     return report
 
@@ -786,12 +813,16 @@ DISCLOSURE_STATEMENT = (
 def render_summary(report: Mapping[str, Any]) -> str:
     """Short human-readable summary of a report."""
     d = report["data"]
-    lines = [
-        f"Validation run '{report['label']}'  ({report['generated_at_utc']})",
-        f"Real rows: {d['n_real']:,}   synthetic cohorts: {d['n_replicates']} "
-        f"(rows {', '.join(f'{n:,}' for n in d['n_synthetic'])})   "
-        f"columns compared: {d['columns_compared']}",
-    ]
+    lines = [f"Validation run '{report['label']}'  ({report['generated_at_utc']})"]
+    if report.get("mode") == "dictionary_only":
+        lines.append(f"No real reference dataset: only checks against the published "
+                     f"frequencies were possible. Synthetic rows: {d['n_synthetic'][0]:,}")
+    else:
+        lines.append(
+            f"Real rows: {d['n_real']:,}   synthetic cohorts: {d['n_replicates']} "
+            f"(rows {', '.join(f'{n:,}' for n in d['n_synthetic'])})   "
+            f"columns compared: {d['columns_compared']}"
+        )
     disc = report.get("discriminator")
     if disc:
         lines += ["", f"HEADLINE  discriminator AUC = {disc['auc']:.3f} "
@@ -831,8 +862,47 @@ def render_summary(report: Mapping[str, Any]) -> str:
             ]
         else:
             lines += ["", f"Replicate envelope: not available ({env['reason']})"]
+    tvd = report.get("tvd_published")
+    if tvd:
+        lines += ["", f"Marginal fidelity against the published frequencies (mean TVD over "
+                  f"{tvd['n_columns']} columns): {tvd['mean_tvd']}; worst:"]
+        lines += [f"    {w['variable']:<28} {w['distance']:.4f}" for w in tvd["worst"][:5]]
+    lines += _render_privacy(report.get("privacy"))
+    skipped = report.get("skipped") or []
+    if skipped:
+        lines += ["", "Requested but not computed:"]
+        lines += [f"    {s['metric']}: {s['reason']}" for s in skipped]
     lines += ["", report["disclosure"]]
     return "\n".join(lines) + "\n"
+
+
+def _render_privacy(priv: Optional[Mapping[str, Any]]) -> List[str]:
+    if not priv:
+        return []
+    lines = ["", "PRIVACY (measured values; interpretation is in the JSON report)"]
+    if "identifiability" in priv:
+        m = priv["identifiability"]
+        lines.append(f"  identifiability score = {m['score']:.3f} "
+                     f"(reference for an independent cohort: {m['reference_if_independent']:.3f})")
+        lines.append(f"    {m['interpretation']}")
+    if "nn_distance_ratio" in priv:
+        m = priv["nn_distance_ratio"]
+        ratio = "n/a" if m["ratio"] is None else f"{m['ratio']:.3f}"
+        lines.append(f"  nearest-neighbour distance ratio (synthetic-to-real / real-to-real) = "
+                     f"{ratio} (about 1 is neutral; near 0 means copying)")
+    if "attribute_inference" in priv:
+        for f in priv["attribute_inference"]["fields"]:
+            lines.append(f"  attribute inference '{f['sensitive_field']}': accuracy "
+                         f"{f['accuracy']:.3f} vs baseline {f['baseline_accuracy']:.3f} "
+                         f"(lift {f['lift']:+.3f})")
+    if "membership_inference" in priv:
+        lines.append(f"  membership-inference AUC = {priv['membership_inference']['auc']:.3f} "
+                     "(about 0.5 is neutral)")
+    lines.append("  thresholds:")
+    for g in priv["thresholds"]:
+        if g["value"] is not None or g["threshold"] is not None:
+            lines.append(f"    {g['metric']}: {g['status']}")
+    return lines
 
 
 def history_row(report: Mapping[str, Any]) -> Dict[str, Any]:
@@ -922,7 +992,194 @@ def _json_default(obj: Any) -> Any:
     raise TypeError(f"not JSON serializable: {type(obj).__name__}")
 
 
+# ------------------------------------------------------- the `validate:` config block
+
+REPORT_NAME = "validation_report.json"
+SUMMARY_NAME = "validation_summary.txt"
+NO_REAL_REASON = "needs a real reference dataset (validate.real); none is present"
+
+
+def resolve_validate_block(
+    block: Mapping[str, Any], strict: bool, warnings: List[str]
+) -> Dict[str, Any]:
+    """Check a canonical ``validate:`` block against the closed metric list and the files.
+
+    An unknown metric name is a ``ConfigError`` (with a did-you-mean hint) when ``strict``;
+    otherwise it is dropped and a warning is appended. A named file that does not exist is
+    always an error. Returns a copy of the block with unknown names removed.
+    """
+    from .config import ConfigError, unknown_message
+
+    out = dict(block)
+    for group, allowed in METRIC_NAMES.items():
+        keep: List[str] = []
+        for i, name in enumerate(block.get(group, [])):
+            if name in allowed:
+                if name not in keep:
+                    keep.append(name)
+                continue
+            where = f"validate.{group}[{i}]"
+            if allowed:
+                msg = unknown_message(where, "metric", name, allowed)
+            else:
+                msg = f"{where}: unknown metric '{name}'. No {group} metrics are available yet"
+            if strict:
+                raise ConfigError(msg)
+            warnings.append(f"{msg} (ignored)")
+        out[group] = keep
+    for key in ("real", "holdout"):
+        if block.get(key) and not Path(block[key]).is_file():
+            raise ConfigError(f"validate.{key}: file not found: {block[key]}")
+    return out
+
+
+def _skip(skipped: List[Dict[str, str]], names: Iterable[str], reason: str) -> None:
+    skipped.extend({"metric": n, "reason": reason} for n in names)
+
+
+def run_configured_validation(
+    block: Mapping[str, Any], data: pd.DataFrame, dictionary: Any, *, seed: Optional[int],
+    exclude: Sequence[str] = (), label: str = "run",
+) -> Optional[Dict[str, Any]]:
+    """Run the metrics a ``validate:`` block requests on the cohort a run just generated.
+
+    ``block`` is the resolved block (``resolve_validate_block``). Returns None when no
+    metric is requested. Without ``validate.real`` only the marginal check against the
+    published frequencies (``tvd``) can run; every other requested metric is listed under
+    ``skipped`` with the reason. With a real file the toolkit runs as for ``synthpediatric
+    validate``, except for metrics that cannot run on a single synthetic cohort or without
+    scikit-learn, which are skipped with the reason.
+    """
+    from .config import ConfigError
+
+    requested = list(block["fidelity"]) + list(block["utility"]) + list(block["privacy"])
+    if not requested:
+        return None
+    seed = 0 if seed is None else int(seed)
+    min_count = int(block["suppression_min"])
+    skipped: List[Dict[str, str]] = []
+
+    if not block.get("real"):
+        from .evaluate import fidelity_summary, marginal_fidelity
+
+        scored = _dictionary_subset(dictionary, [c for c in data.columns if c not in exclude])
+        table = marginal_fidelity(scored, data)
+        summary = fidelity_summary(table)
+        published = table[table["frequency_source"] != "uniform"]
+        worst = published.head(10)
+        report: Dict[str, Any] = {
+            "schema_version": SCHEMA_VERSION, "label": label, "mode": "dictionary_only",
+            "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "synthpediatric_version": __version__,
+            "requested": requested,
+            "settings": {"seed": seed, "min_count": min_count, "metrics": requested},
+            "data": {"n_real": None, "n_synthetic": [int(len(data))], "n_replicates": 1,
+                     "columns_compared": int(len(published))},
+            "disclosure": DISCLOSURE_STATEMENT.format(min_count=min_count),
+            "skipped": skipped,
+        }
+        if "tvd" in requested:
+            mean = summary["overall_tv_distance_published"]
+            report["tvd_published"] = {
+                "basis": "published frequencies in the dictionary (no real data)",
+                "n_columns": summary["published_columns"],
+                "mean_tvd": None if mean is None else round(float(mean), 6),
+                "worst": [{"variable": r.variable, "distance": round(float(r.tv_distance), 6)}
+                          for r in worst.itertuples()],
+            }
+        _skip(skipped, [m for m in requested if m != "tvd"], NO_REAL_REASON)
+        audit_report(report, min_count)
+        return report
+
+    try:
+        real = read_frame(block["real"])
+        holdout = read_frame(block["holdout"]) if block.get("holdout") else None
+        fidelity = [m for m in block["fidelity"]]
+        if "replicate_envelope" in fidelity:
+            fidelity.remove("replicate_envelope")
+            _skip(skipped, ["replicate_envelope"],
+                  "needs at least 2 synthetic replicates; a run makes one cohort. Use "
+                  "`synthpediatric validate` with several seeds")
+        if "discriminator_auc" in fidelity:
+            try:
+                _require_sklearn()
+            except ImportError:
+                fidelity.remove("discriminator_auc")
+                _skip(skipped, ["discriminator_auc"],
+                      'scikit-learn is not installed (pip install "synthpediatric[validate]")')
+        _skip(skipped, block["utility"], "no utility metrics are available yet")
+        report = validate_cohorts(
+            real, data, label=label, dictionary=dictionary, seed=seed, min_count=min_count,
+            metrics=fidelity, exclude=list(exclude) + list(block.get("exclude", [])),
+            privacy=block["privacy"], holdout=holdout, sensitive=block.get("sensitive", ()),
+            thresholds=block.get("thresholds"),
+            max_records=int(block.get("max_records", 2000)),
+        )
+    except ValidationError as exc:
+        raise ConfigError(f"validate: {exc}") from exc
+    report["mode"] = "real_reference"
+    report["requested"] = requested
+    report["skipped"].extend(skipped)
+    audit_report(report, min_count)
+    return report
+
+
+def _dictionary_subset(dictionary: Any, keep: Sequence[str]) -> Any:
+    """A copy of ``dictionary`` limited to the variables in ``keep``."""
+    from .dictionary import DataDictionary
+
+    return DataDictionary(
+        name=dictionary.name, source=dictionary.source, version=dictionary.version,
+        n_records=dictionary.n_records,
+        variables={k: v for k, v in dictionary.variables.items() if k in keep},
+        notes=dictionary.notes,
+    )
+
+
+def validation_headline(report: Mapping[str, Any]) -> Dict[str, Any]:
+    """The headline numbers of a report, for the run manifest."""
+    out: Dict[str, Any] = {}
+    if "tvd_published" in report:
+        out["mean_tvd_published"] = report["tvd_published"]["mean_tvd"]
+    uni = (report.get("univariate") or {}).get("summary")
+    if uni:
+        out["univariate_mean"] = uni["mean"]
+    dep = (report.get("dependency") or {}).get("summary")
+    if dep:
+        out["dependency_mean_abs_diff"] = dep["mean_abs_diff"]
+    if report.get("discriminator"):
+        out["discriminator_auc"] = report["discriminator"]["auc"]
+    priv = report.get("privacy") or {}
+    if "identifiability" in priv:
+        out["identifiability"] = priv["identifiability"]["score"]
+    if "nn_distance_ratio" in priv:
+        out["nn_distance_ratio"] = priv["nn_distance_ratio"]["ratio"]
+    if "attribute_inference" in priv:
+        out["attribute_inference_max_lift"] = priv["attribute_inference"]["max_lift"]
+    if "membership_inference" in priv:
+        out["membership_auc"] = priv["membership_inference"]["auc"]
+    if priv:
+        out["release_gate_identifiability"] = priv["release_gate"]["status"]
+    return out
+
+
+def write_validation_files(report: Mapping[str, Any], out_dir: Any) -> Dict[str, Path]:
+    """Write ``validation_report.json`` and ``validation_summary.txt`` after the audit."""
+    audit_report(report, int(report["settings"]["min_count"]))
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    json_path, txt_path = out / REPORT_NAME, out / SUMMARY_NAME
+    json_path.write_text(json.dumps(report, indent=2, default=_json_default) + "\n",
+                         encoding="utf-8")
+    txt_path.write_text(render_summary(report), encoding="utf-8")
+    return {"report": json_path, "summary": txt_path}
+
+
 # --------------------------------------------------------------------------- CLI
+
+
+def _split_names(text: Optional[str]) -> List[str]:
+    return [t.strip() for t in (text or "").split(",") if t.strip()]
 
 
 def run_cli(args: Any) -> int:
@@ -940,9 +1197,16 @@ def run_cli(args: Any) -> int:
             )
         metrics = [m.strip() for m in (args.metrics or "").split(",") if m.strip()] or None
         exclude = [c.strip() for c in args.exclude.split(",") if c.strip()] if args.exclude else []
+        privacy = _split_names(getattr(args, "privacy", None))
+        if privacy == ["all"]:
+            privacy = list(METRIC_NAMES["privacy"])
+        holdout_path = getattr(args, "holdout", None)
         report = validate_cohorts(
             real, syns, label=args.label, dictionary=dictionary, seed=args.seed,
             min_count=args.min_count, metrics=metrics, exclude=exclude, n_splits=args.folds,
+            privacy=privacy, holdout=read_frame(holdout_path) if holdout_path else None,
+            sensitive=_split_names(getattr(args, "sensitive", None)),
+            max_records=getattr(args, "max_records", 2000),
         )
     except (ValidationError, MetricNameError, ImportError, FileNotFoundError) as exc:
         raise SystemExit(f"validate: {exc}")

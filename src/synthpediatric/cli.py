@@ -215,6 +215,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Consistency repairs: {result.total_repairs:,}")
     print("Wrote: cohort, coverage.csv, conformance.csv, fidelity.csv,")
     print("       dictionary.json, manifest.json")
+    if bundle.get("validation"):
+        print("       validation_report.json, validation_summary.txt "
+              f"({len(bundle['validation']['skipped'])} requested metric(s) skipped)")
     return 0
 
 
@@ -365,6 +368,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_val.add_argument("--folds", type=int, default=5, help="discriminator CV folds")
     p_val.add_argument("--metrics", help="comma-separated metric names (default: all)")
     p_val.add_argument("--exclude", help="comma-separated columns to leave out (e.g. IDs)")
+    p_val.add_argument(
+        "--privacy", help="comma-separated privacy metrics, or 'all' (default: none)"
+    )
+    p_val.add_argument("--holdout", help="real records not used to build the synthetic data")
+    p_val.add_argument("--sensitive", help="comma-separated sensitive fields (attribute inference)")
+    p_val.add_argument("--max-records", type=int, default=2000, help="privacy sampling cap")
     _add_rdf_opts(p_val)
     p_val.set_defaults(func=cmd_validate)
 

@@ -34,10 +34,10 @@ oversample:               # boost rare cancers; factors are recorded in the mani
 constraints:
   file: examples/nccr_ctc_rules.json
 
-validate:                 # reserved: recorded in the manifest, not evaluated yet
+validate:                 # no validate.real: only tvd runs; the rest is reported as skipped
   fidelity: [tvd, ks]
-  utility: [pmse]
-  privacy: [nn_distance]
+  utility: []
+  privacy: [nn_distance_ratio, identifiability]
   suppression_min: 16
 
 outputs: {dir: out/profile_full}

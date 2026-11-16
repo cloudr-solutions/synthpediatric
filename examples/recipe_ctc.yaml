@@ -24,7 +24,7 @@ targets:
       "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms": {s5: 0.75}
       "VII. Hepatic Tumors": {s5: 0.70}
 
-validate:                 # reserved: parsed and recorded in the manifest, not evaluated yet
+validate:                 # no validate.real: only the published-frequency TVD check runs
   fidelity: [tvd]
   utility: []
   privacy: []

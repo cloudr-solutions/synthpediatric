@@ -89,10 +89,11 @@ oversample:                   # boost categories; one mapping or a list of them
 constraints:                  # logical rules (hard, coherence)
   file: rules/ctc_consistency_rules.json   # or inline: {rules: [...], max_iterations: 10}
 
-validate:                     # reserved: parsed, shape-checked, recorded; not evaluated yet
-  fidelity: [tvd, ks, correlation_difference, km_concordance]
-  utility:  [pmse, "specific:survival_by_treatment"]
-  privacy:  [nn_distance, membership_inference]
+validate:                     # live: see "The `validate:` block" below
+  fidelity: [tvd, ks, assoc_diff]
+  utility:  []                # none yet
+  privacy:  [nn_distance_ratio, identifiability]
+  # real: /cgc/data/extract.csv   # participant-level file; absent = no real data
   suppression_min: 16         # default 16
 
 outputs: {dir: out/all_cohort, format: csv}
@@ -272,13 +273,41 @@ repair target such as `Not applicable` is legitimately not in the dictionary), a
 `time_col` / `event_col` that overwrites an existing column, and the `generate --rules` CLI
 command (not config driven). Only the first mistake is reported per run.
 
-### The reserved `validate:` block
+### The `validate:` block
 
 `fidelity`, `utility` and `privacy` are lists of metric names; `suppression_min` is an
 integer >= 1 (default 16). The shape is checked, unknown keys are rejected, defaults are
-filled in, and the block is copied to the manifest. Metric names are not checked against
-any list and no metric is computed; that is separate work.
+filled in, and the block is copied to the manifest. The block is live: when it requests at
+least one metric, `run` computes the metrics after generation and writes
+`validation_report.json` and `validation_summary.txt` next to the manifest.
 
+Metric names come from a closed list (`synthpediatric.validate.METRIC_NAMES`):
+
+| List | Names |
+|---|---|
+| `fidelity` | `tvd`, `ks`, `assoc_diff`, `discriminator_auc`, `replicate_envelope` |
+| `utility` | none yet; any name is an error |
+| `privacy` | `nn_distance_ratio`, `identifiability`, `attribute_inference`, `membership_inference` |
+
+An unknown name is an error with a did-you-mean hint when `strict` is on, and an ignored
+name with a manifest warning when `strict` is off. The names are checked when the run
+starts, before any record is generated.
+
+Optional keys, written to the canonical config only when given (so existing configs keep
+their hash):
+
+| Key | Meaning |
+|---|---|
+| `real` | path to a real participant-level `.csv` / `.parquet`, available inside CGC. Absent means no real data: only the marginal check against the published frequencies (`tvd`) runs, and every other requested metric is reported as skipped with the reason |
+| `holdout` | path to real records not used to build the synthetic data (needed for `membership_inference`) |
+| `sensitive` | list of categorical fields to attack in `attribute_inference`; no default |
+| `exclude` | list of columns left out of the comparison |
+| `thresholds` | `identifiability_max`, `nn_distance_ratio_min`, `membership_auc_max`, `attribute_inference_lift_max`; all unset by default (the report then says `no threshold configured`) |
+| `max_records` | sampling cap per cohort for the privacy distances (default 2,000, minimum 30) |
+
+A `real` or `holdout` file that does not exist is an error. Paths resolve against the
+working directory. See [validation.md](validation.md#validation-from-a-config) for what
+each metric means and what the report holds.
 ## Manifest
 
 `manifest.json` is written next to the cohort. To reproduce a run from the manifest alone,
@@ -300,6 +329,7 @@ a valid config and gives the same hash.
 | `fidelity` | `published_columns`, `invented_columns`, `overall_tv_distance_published`, `overall_tv_distance_all_columns` |
 | `missingness` | `none` |
 | `validate` | the normalized `validate:` block, or null |
+| `validation` | present only when `validate:` requested metrics: `report` and `summary` file names, `mode` (`dictionary_only` or `real_reference`), `requested`, `skipped` (metric and reason), and `headline` numbers |
 | `input_files` | SHA-256 of each file the config referenced (rule files, tables, survival specs, cross-tabs) |
 | `strict` | whether unknown names were errors (`true`) or warnings (`false`) in this run |
 | `warnings` | with `strict: false`, every unknown name that was tolerated; also IPF non-convergence |
@@ -404,7 +434,7 @@ does this against `tests/data/legacy_golden.csv`.
 | `constraints` | `constraints.RuleSet` |
 | `cohort` | `inputs.apply_cohort` |
 | `oversample` | `resample.oversample_with_report` |
-| `validate` | reserved; `conformance` + `evaluate` (fidelity) cover today's scorecard, privacy suite planned |
+| `validate` | live when it requests metrics; `conformance` + `evaluate` still write the default fidelity files |
 
 ## Design notes: open points and choices made
 
