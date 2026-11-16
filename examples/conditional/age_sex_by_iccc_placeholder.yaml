@@ -1,0 +1,77 @@
+# PLACEHOLDER numbers, illustrative only. Every number in this file is invented.
+# Replace them with the values of your published table before you generate a dataset.
+#
+# Age and sex by cancer group, as a conditional rule: the group is drawn from a mix, then
+# age and sex are drawn given the group. Docs: docs/conditional.md
+# Run:  python examples/conditional/run_example.py \
+#         examples/conditional/age_sex_by_iccc_placeholder.yaml --metadata <your snapshot> --out out/conditional
+name: PLACEHOLDER conditional - age and sex by ICCC group
+metadata: nccr_instances.ttl   # point this at your NCCR snapshot (run_example.py --metadata overrides it)
+source: CTC                    # the NCCR source whose variables are used
+n: 50000                       # records to generate
+seed: 7                        # same config + same seed = same records
+profile: standard              # the conditional rule is on in the standard and full profiles
+cohort:                        # keep 4 ICCC major groups: 3 are covered by the table, 1 is not
+  name: PLACEHOLDER four groups
+  filters:
+    - variable: icccMajor
+      op: equals
+      values:
+        - "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases"
+        - "II. Lymphomas and reticuloendothelial neoplasms"
+        - "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms"
+        - "V. Retinoblastoma"
+targets:
+  conditional:
+    provenance:                # where the numbers come from (recorded in manifest.json)
+      source: PLACEHOLDER table name   # free text: the table or report
+      date: "2000-01-01"               # PLACEHOLDER date of the table
+      origin: assumption               # cgc_aggregate | seer_stat | literature | assumption
+      note: Invented numbers for documentation only.   # optional free text
+      # min_cell: 16                   # optional; default 16 for origin cgc_aggregate, none otherwise
+      # override_reason: ...           # required when min_cell is 0
+    group:
+      variable: icccMajor      # the grouping variable (one per config)
+      labels:                  # optional short names for dictionary labels, used below
+        Leukemias: "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases"
+        Lymphomas: "II. Lymphomas and reticuloendothelial neoplasms"
+        CNS: "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms"
+        Retinoblastoma: "V. Retinoblastoma"
+      mix:                     # how many records each group gets
+        basis: counts          # counts | percent | published_marginal
+        values:                # PLACEHOLDER counts, only for the groups the table covers
+          Leukemias: 300
+          Lymphomas: 200
+          CNS: 250
+    scope:
+      age_years: [0, 19]       # the age range the table covers; must match the bins below
+    age:
+      anchor: ageRecode19Groups  # the age variable that is sampled; the other age variables follow it
+      bins:                      # the age groups of the table
+        "0-4": {years: [0, 4]}   # a union of the anchor bands '00 years' and '01-04 years'
+        "5-9": {years: [5, 9]}
+        "10-14": {years: [10, 14]}
+        "15-19": {years: [15, 19]}
+      # split:                   # optional: how a union bin divides into anchor bands; the default
+      #   "0-4": {"00 years": 1, "01-04 years": 4}   # is the published weights of the metadata
+    targets:                     # one entry per variable that depends on the group
+      - variable: ageRecode19Groups    # the anchor is the age target
+        basis: percent               # each row is a distribution over the bins and sums to 100
+        by_group:
+          Leukemias: {"0-4": 40, "5-9": 20, "10-14": 20, "15-19": 20}   # PLACEHOLDER
+          Lymphomas: {"0-4": 10, "5-9": 20, "10-14": 30, "15-19": 40}   # PLACEHOLDER
+          CNS: {"0-4": 30, "5-9": 30, "10-14": 20, "15-19": 20}         # PLACEHOLDER
+      - variable: sex
+        basis: counts            # the counts act as the ratio Male / (Male + Female) per group
+        by_group:
+          Leukemias: {Male: 170, Female: 130}   # PLACEHOLDER
+          Lymphomas: {Male: 110, Female: 90}    # PLACEHOLDER
+          CNS: {Male: 120, Female: 130}         # PLACEHOLDER
+    uncovered:                   # groups kept by the cohort that the table does not cover
+      groups:
+        Retinoblastoma:
+          share: 40              # PLACEHOLDER share, in the unit of the mix (counts here)
+          targets:               # one treatment per target; every one is recorded as an assumption
+            ageRecode19Groups: published_age_mix   # published age weights of the metadata
+            sex: same_as_covered_total             # the pooled sex ratio of the covered groups
+outputs: {dir: out/conditional/age_sex_by_iccc}

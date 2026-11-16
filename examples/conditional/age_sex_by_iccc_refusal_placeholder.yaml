@@ -1,0 +1,67 @@
+# PLACEHOLDER numbers, illustrative only. Every number in this file is invented.
+# Shows the minimum-cell check: origin cgc_aggregate refuses any count between 1 and 15.
+# One sex cell below holds the invented count 9, so the run is refused and writes nothing.
+# Run:  python examples/conditional/run_example.py \
+#         examples/conditional/age_sex_by_iccc_refusal_placeholder.yaml --metadata <your snapshot> --out out/conditional_refusal
+name: PLACEHOLDER conditional - refusal by the minimum-cell check
+metadata: nccr_instances.ttl   # point this at your NCCR snapshot (run_example.py --metadata overrides it)
+source: CTC
+n: 50000
+seed: 7
+profile: standard
+cohort:
+  name: PLACEHOLDER four groups
+  filters:
+    - variable: icccMajor
+      op: equals
+      values:
+        - "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases"
+        - "II. Lymphomas and reticuloendothelial neoplasms"
+        - "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms"
+        - "V. Retinoblastoma"
+targets:
+  conditional:
+    provenance:
+      source: PLACEHOLDER aggregate export
+      date: "2000-01-01"
+      origin: cgc_aggregate    # the default minimum cell is 16 for this origin
+    group:
+      variable: icccMajor
+      labels:
+        Leukemias: "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases"
+        Lymphomas: "II. Lymphomas and reticuloendothelial neoplasms"
+        CNS: "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms"
+        Retinoblastoma: "V. Retinoblastoma"
+      mix:
+        basis: counts
+        values: {Leukemias: 300, Lymphomas: 200, CNS: 250}   # PLACEHOLDER
+    scope:
+      age_years: [0, 19]
+    age:
+      anchor: ageRecode19Groups
+      bins:
+        "0-4": {years: [0, 4]}
+        "5-9": {years: [5, 9]}
+        "10-14": {years: [10, 14]}
+        "15-19": {years: [15, 19]}
+    targets:
+      - variable: ageRecode19Groups
+        basis: percent
+        by_group:
+          Leukemias: {"0-4": 40, "5-9": 20, "10-14": 20, "15-19": 20}
+          Lymphomas: {"0-4": 10, "5-9": 20, "10-14": 30, "15-19": 40}
+          CNS: {"0-4": 30, "5-9": 30, "10-14": 20, "15-19": 20}
+      - variable: sex
+        basis: counts
+        by_group:
+          Leukemias: {Male: 170, Female: 130}
+          Lymphomas: {Male: 191, Female: 9}    # PLACEHOLDER: the Female cell of 9 is below 16
+          CNS: {Male: 120, Female: 130}
+    uncovered:
+      groups:
+        Retinoblastoma:
+          share: 40
+          targets:
+            ageRecode19Groups: published_age_mix
+            sex: same_as_covered_total
+outputs: {dir: out/conditional/refusal}
