@@ -133,11 +133,13 @@ lives in `synthpediatric/rules.py`; the file formats and top-level schema live i
 | 30 | `cohort` | `cohort` | dictionary | keep only the categories a cohort definition allows |
 | 40 | `oversample` | `oversample` | dictionary | multiply the weight of chosen categories (rare-cancer boost) |
 | 50 | `joints` | `targets.joints` | generate | IPF-calibrate a cross-tab to the marginals; sample the backbone jointly |
+| 55 | `conditional` | `targets.conditional` | generate | sample a grouping variable, then targets given the group (see [conditional.md](conditional.md)) |
 | 60 | `constraints` | `constraints` | generate | repair logically impossible records (hard) |
 | 80 | `survival` | `targets.survival` | post | add time and event columns by group |
 
 Sampling sits between 60 and 80: independent marginals, or the calibrated backbone when
-`joints` ran. Two steps are not rules because they are settings: `no_frequency` and
+`joints` ran. When `conditional` is configured it overwrites its columns right after that
+sampling and the `constraints` repairs run after it. Two steps are not rules because they are settings: `no_frequency` and
 `missingness` (below).
 
 ### Execution order and precedence
@@ -149,8 +151,11 @@ of earlier ones, which gives the precedence:
 - `cohort` restricts the final marginals, so its weights are the within-cohort ones.
 - `oversample` reweights the within-cohort marginals.
 - `joints` calibrate to those final marginals.
+- `conditional` draws its group and target columns after `joints`, so those columns follow
+  the conditional table, not the marginals or the cross-tab. It cannot share a variable with
+  `joints`.
 - `constraints` are hard: they repair whatever sampling produced, so they win over a
-  sampled or joint-drawn value. The repair cost shows in the fidelity report.
+  sampled, joint-drawn or conditional value. The repair cost shows in the fidelity report.
 - `survival` is conditioned on the repaired group column.
 
 A rule runs at most once. Where several items of one kind are needed, the rule takes a
@@ -324,7 +329,7 @@ a valid config and gives the same hash.
 | `config_sha256` | SHA-256 of `config` plus the resolved rule list; `recipe_sha256` carries the same value for older readers |
 | `recipe` | the config exactly as given, after parsing |
 | `profile` | the resolved profile name |
-| `rules` | every rule in execution order: `name`, `order`, `stage`, `status`, `reason`, `params`, and `details` for applied rules (for `joints`: iterations, deviation, convergence) |
+| `rules` | every rule in execution order: `name`, `order`, `stage`, `status`, `reason`, `params`, and `details` for applied rules (for `joints`: iterations, deviation, convergence; for `conditional`: provenance, minimum-cell decision, age bins and splits, uncovered-group assumptions, achieved differences, see [conditional.md](conditional.md)) |
 | `oversampling` | one entry per oversample step: `variable`, `factor`, `factors_applied` (per category), `unmatched_values` (always empty when `strict` is true, because a non-matching label is an error), `proportions_before`, `proportions_after` |
 | `no_frequency` | the mode, and the variables that had no published frequency |
 | `table_type`, `table_label`, `source`, `linkage` | `unlinked_single_source`, a short label, the NCCR source id (null for a JSON dictionary), and the statement that rows cannot be joined across sources (no participant key in the metadata) |

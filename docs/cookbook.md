@@ -296,6 +296,23 @@ overall TV distance was 0.155 here, which is the price of forcing those values.
 You can also write rules inline: `constraints: {rules: [...], max_iterations: 10}` with the same
 rule fields as the JSON file.
 
+## h. Conditional distributions by group
+
+Use it when a published table gives age and sex per cancer group (for example, age by ICCC
+major group) and the dataset has to reproduce those conditionals, not just the overall
+marginals. Needs `profile: standard` or `full`. It needs an NCCR snapshot, because it uses
+the real ICCC and age variables; run it from the repository root.
+
+```bash
+python examples/conditional/run_example.py examples/conditional/age_sex_by_iccc_placeholder.yaml \
+    --metadata nccr_instances.ttl --out out/conditional
+```
+
+The example is `examples/conditional/age_sex_by_iccc_placeholder.yaml`. All its numbers are
+placeholders. The full guide, with the annotated config and the decisions behind the rule, is
+[conditional.md](conditional.md). It is not in `examples/cookbook`, because that folder runs
+offline.
+
 ---
 
 ## Zip the data for upload
