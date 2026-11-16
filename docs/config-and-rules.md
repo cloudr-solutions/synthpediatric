@@ -277,9 +277,13 @@ the spec for every group that is not listed, any valid spec (`0.8`, `{s5: ...}`,
 configs without the key give the same output as before, and `__default__: 0.80` gives the
 same output as omitting it. `examples/profiles/full.yaml` already assumed this.
 
-**Not covered:** the `allowed_values` / `trigger_values` labels inside constraints (a
-repair target such as `Not applicable` is legitimately not in the dictionary), a
-`time_col` / `event_col` that overwrites an existing column, and the `generate --rules` CLI
+**Repair targets.** Each `allowed_values` label of a constraint must be a permissible value
+of its target column, compared exactly (line breaks included) in the run's value mode; a
+miss is a config error with a did-you-mean suggestion, also for `generate --rules`. See the
+cookbook section [Not applicable values](cookbook.md#not-applicable-values-use-the-metadata-code-or-null).
+
+**Not covered:** the `trigger_values` labels inside constraints, a `time_col` / `event_col`
+that overwrites an existing column, and the other checks for the `generate --rules` CLI
 command (not config driven). Only the first mistake is reported per run.
 
 ### The `validate:` block

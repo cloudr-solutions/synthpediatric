@@ -496,8 +496,8 @@ before. Put `strict: true` in one to turn the checks on.
 
 ### Still not checked
 
-- `allowed_values` and `trigger_values` labels inside a constraints file (a repair target such
-  as `Not applicable` is legitimately not in the dictionary).
+- `trigger_values` labels inside a constraints file. (`allowed_values` repair targets are
+  checked: see the next section.)
 - A `time_col` / `event_col` that has the same name as an existing column overwrites it.
 - Only the first mistake is reported per run; fix it and run again to see the next.
 - Data values: a dictionary that is itself wrong (for example the wrong metadata `source`) is
