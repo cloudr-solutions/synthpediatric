@@ -11,6 +11,7 @@ Execution order (fixed, ascending ``order``; a rule runs at most once)::
     30 cohort       dictionary   restrict categories to a sub-population
     40 oversample   dictionary   reweight categories (rare-cancer boost)
     50 joints       generate     calibrate a cross-tab to the marginals (IPF) and sample it
+    55 conditional  generate     group from a mix, then targets given the group (see conditional.py)
     60 constraints  generate     hard consistency repairs on the sampled records
     -- sampling happens here (joint backbone if `joints` ran, else independent marginals) --
     80 survival     post         time/event columns by group
@@ -62,8 +63,11 @@ from .dictionary import DataDictionary
 
 PROFILES: Dict[str, Tuple[str, ...]] = {
     "marginals_only": ("marginals", "overrides", "cohort"),
-    "standard": ("marginals", "overrides", "cohort", "joints", "constraints"),
-    "full": ("marginals", "overrides", "cohort", "joints", "constraints", "oversample", "survival"),
+    "standard": ("marginals", "overrides", "cohort", "joints", "conditional", "constraints"),
+    "full": (
+        "marginals", "overrides", "cohort", "joints", "conditional", "constraints",
+        "oversample", "survival",
+    ),
 }
 # No `profile:` given -> every configured rule runs (what recipes meant before profiles).
 DEFAULT_PROFILE = "full"
@@ -93,6 +97,10 @@ class Context:
     # Effective source policy (``source_policy.resolve_source_policy``); None for a
     # dictionary that is not one of the NCCR sources, which has no policy.
     source_policy: Optional[Dict[str, Any]] = None
+    # Plan built by the `conditional` rule (sampled by ``conditional.finalize``), and the
+    # extra tables (name -> DataFrame) a run writes next to the cohort.
+    conditional: Any = None
+    extra_tables: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.base_dictionary is None:
@@ -501,6 +509,18 @@ def _apply_joints(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _norm_conditional(where: str, value: Any) -> Dict[str, Any]:
+    from .conditional import _norm_conditional as norm
+
+    return norm(where, value)
+
+
+def _apply_conditional(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
+    from .conditional import apply
+
+    return apply(ctx, p)
+
+
 def _apply_constraints(ctx: Context, p: Dict[str, Any]) -> Dict[str, Any]:
     from .constraints import RuleSet
 
@@ -624,6 +644,9 @@ RULES: Dict[str, Rule] = {
         Rule("joints", 50, "generate", "targets.joints",
              "calibrate a cross-tab to the marginals (IPF) and sample it",
              _norm_joints, _apply_joints),
+        Rule("conditional", 55, "generate", "targets.conditional",
+             "sequential group -> conditional targets with age/ICCC consistency",
+             _norm_conditional, _apply_conditional),
         Rule("constraints", 60, "generate", "constraints",
              "hard consistency repairs", _norm_constraints, _apply_constraints),
         Rule("survival", 80, "post", "targets.survival",

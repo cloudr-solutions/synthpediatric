@@ -140,10 +140,16 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
     run_stage(ctx, resolved, "generate")
 
     n, seed = cfg["n"], cfg["seed"]
+    # With a `conditional` rule the constraints run last, on the conditional columns.
+    ruleset = None if ctx.conditional is not None else ctx.ruleset
     if ctx.joint is not None:
-        result = generate_calibrated(ctx.dictionary, ctx.joint, n, rng=seed, ruleset=ctx.ruleset)
+        result = generate_calibrated(ctx.dictionary, ctx.joint, n, rng=seed, ruleset=ruleset)
     else:
-        result = generate(ctx.dictionary, n=n, rng=seed, ruleset=ctx.ruleset)
+        result = generate(ctx.dictionary, n=n, rng=seed, ruleset=ruleset)
+    if ctx.conditional is not None:
+        from . import conditional
+
+        result = conditional.finalize(ctx, result)
     ctx.df = result.data
 
     run_stage(ctx, resolved, "post")
@@ -172,6 +178,7 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
         "source": loaded.source_id, "source_policy": policy,
         "report": generation_report(loaded, mode),
         "validation": validation,
+        "extra_tables": ctx.extra_tables,
     }
 
 
@@ -255,6 +262,8 @@ def write_run(
     conformance_report(d_scored, df).to_csv(out / "conformance.csv", index=False)
     fidelity = marginal_fidelity(d_scored, df)
     fidelity.to_csv(out / "fidelity.csv", index=False)
+    for name, table in bundle.get("extra_tables", {}).items():
+        table.to_csv(out / name, index=False)
     (out / "dictionary.json").write_text(json.dumps(_dictionary_to_json(d), indent=2, default=str))
 
     from . import __version__  # lazy to avoid an import cycle at package init

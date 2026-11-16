@@ -37,7 +37,7 @@ DEFAULT_SUPPRESSION_MIN = 16
 MAX_LISTED_CHOICES = 15
 
 # Sections of the spec layout that live under ``targets:``.
-TARGET_KEYS = ("marginals", "overrides", "joints", "survival")
+TARGET_KEYS = ("marginals", "overrides", "joints", "conditional", "survival")
 # Legacy flat keys -> the canonical (section, key) they move to.
 _LEGACY_KEYS = {"override_marginals": "marginals", "survival": "survival"}
 TOP_LEVEL_KEYS = (
