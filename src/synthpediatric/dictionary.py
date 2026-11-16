@@ -111,6 +111,14 @@ class DataDictionary:
     n_records: Optional[int]
     variables: Dict[str, VariableMarginal]
     notes: str = ""
+    # Set by the NCCR loader only. ``skipped`` maps a metadata variable that is NOT in
+    # ``variables`` to the reason (see ``nccr_rdf.SKIP_REASONS``); rules that rebuild a
+    # dictionary do not carry it, so read it from the dictionary as loaded.
+    source_id: Optional[str] = None
+    skipped: Dict[str, str] = field(default_factory=dict)
+    # The effective source policy of the run that loaded this dictionary (see
+    # ``source_policy``); None for a JSON dictionary.
+    source_policy: Optional[Dict[str, Any]] = None
 
     @property
     def variable_names(self) -> List[str]:

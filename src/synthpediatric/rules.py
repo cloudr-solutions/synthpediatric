@@ -90,6 +90,9 @@ class Context:
     # labels are checked against it: a table replaces a variable's whole distribution, so
     # it may legitimately name categories an earlier rule dropped.
     base_dictionary: Optional[DataDictionary] = None
+    # Effective source policy (``source_policy.resolve_source_policy``); None for a
+    # dictionary that is not one of the NCCR sources, which has no policy.
+    source_policy: Optional[Dict[str, Any]] = None
 
     def __post_init__(self) -> None:
         if self.base_dictionary is None:
@@ -556,8 +559,13 @@ def _survival_specs(ctx: Context, p: Dict[str, Any]) -> Dict[Any, Any]:
 
 def _preflight_survival(ctx: Context, p: Dict[str, Any]) -> None:
     """Check the survival section against the dictionary before any record is sampled."""
+    from .source_policy import survival_refusal
     from .survival_gen import _make_sampler
 
+    if ctx.source_policy is not None:
+        refusal = survival_refusal(ctx.source_policy)
+        if refusal:
+            raise ConfigError(refusal)
     where = "targets.survival"
     variables = ctx.dictionary.variables
     if p["group_col"] not in variables:

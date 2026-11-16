@@ -41,9 +41,9 @@ TARGET_KEYS = ("marginals", "overrides", "joints", "survival")
 # Legacy flat keys -> the canonical (section, key) they move to.
 _LEGACY_KEYS = {"override_marginals": "marginals", "survival": "survival"}
 TOP_LEVEL_KEYS = (
-    "name", "metadata", "source", "n", "seed", "profile", "value_mode", "no_frequency",
-    "missingness", "strict", "rules", "cohort", "targets", "oversample", "constraints",
-    "validate", "outputs",
+    "name", "metadata", "source", "n", "seed", "profile", "value_mode", "value_modes",
+    "no_frequency", "source_policy", "missingness", "strict", "rules", "cohort", "targets",
+    "oversample", "constraints", "validate", "outputs",
 )
 LEGACY_TOP_LEVEL_KEYS = tuple(_LEGACY_KEYS)
 
@@ -256,6 +256,7 @@ def _collect_sections(raw: Mapping[str, Any]) -> Dict[str, Any]:
 def normalize_config(raw: Mapping[str, Any]) -> Dict[str, Any]:
     """Validate a raw config and return its canonical form (see module docstring)."""
     from . import rules  # local import: rules depends on this module's helpers
+    from .source_policy import normalize_source_policy, normalize_value_modes
 
     check_keys("config", raw, TOP_LEVEL_KEYS + LEGACY_TOP_LEVEL_KEYS)
 
@@ -270,9 +271,14 @@ def normalize_config(raw: Mapping[str, Any]) -> Dict[str, Any]:
     cfg["seed"] = None if seed is None else as_int("seed", seed)
     cfg["value_mode"] = check_choice("value_mode", raw.get("value_mode", "label"), VALUE_MODES)
 
+    if raw.get("value_modes") is not None:  # written only when given: an explicit choice
+        cfg["value_modes"] = normalize_value_modes("value_modes", raw["value_modes"])
+
     mode = raw.get("no_frequency", "uniform")
     mode = _NO_FREQUENCY_ALIASES.get(mode, mode)
     cfg["no_frequency"] = check_choice("no_frequency", mode, NO_FREQUENCY_MODES)
+    if raw.get("source_policy") is not None:
+        cfg["source_policy"] = normalize_source_policy("source_policy", raw["source_policy"])
 
     missingness = check_choice("missingness", raw.get("missingness", "none"), MISSINGNESS_MODES)
     if missingness == "realistic":
@@ -311,10 +317,18 @@ def normalize_config(raw: Mapping[str, Any]) -> Dict[str, Any]:
 
 
 def config_hash(
-    canonical: Mapping[str, Any], resolved_rules: Optional[List[Dict[str, Any]]] = None
+    canonical: Mapping[str, Any],
+    resolved_rules: Optional[List[Dict[str, Any]]] = None,
+    policy_supplied: Optional[Mapping[str, Any]] = None,
 ) -> str:
-    """SHA-256 of the canonical config (plus the resolved rule list when given)."""
-    payload = {"config": canonical, "resolved_rules": resolved_rules}
+    """SHA-256 of the canonical config (plus the resolved rule list when given).
+
+    ``policy_supplied`` is what the built-in source policy decided for this run. It is
+    hashed only when not empty, so a run the policy does not touch keeps its hash.
+    """
+    payload: Dict[str, Any] = {"config": canonical, "resolved_rules": resolved_rules}
+    if policy_supplied:
+        payload["policy_supplied"] = policy_supplied
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 

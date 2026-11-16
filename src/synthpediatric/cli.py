@@ -5,14 +5,14 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import pandas as pd
 
 from . import __version__
 from .constraints import RuleSet
 from .dictionary import DataDictionary
-from .evaluate import PROVENANCE_STATEMENT, marginal_fidelity, overall_score
+from .evaluate import PROVENANCE_STATEMENT, fidelity_summary, marginal_fidelity
 from .generate import generate
 
 _REMOTE_KEYWORDS = ("remote", "nccr")
@@ -22,16 +22,30 @@ def _is_rdf_spec(spec: str) -> bool:
     return spec.lower() in _REMOTE_KEYWORDS or spec.lower().endswith(".ttl")
 
 
-def _load_dictionary(args: argparse.Namespace) -> DataDictionary:
-    """Load a dictionary from JSON, a local Turtle file, or the published NCCR metadata.
+def _parse_var_modes(items: Optional[List[str]]) -> dict:
+    """``--var-value-mode NAME=label|code`` (repeatable) -> {NAME: mode}."""
+    out = {}
+    for item in items or []:
+        name, sep, mode = item.partition("=")
+        if not sep or not name or mode not in ("label", "code"):
+            raise SystemExit(f"--var-value-mode: expected NAME=label or NAME=code, got '{item}'")
+        out[name] = mode
+    return out
+
+
+def _load_with_policy(args: argparse.Namespace) -> Tuple[DataDictionary, Optional[dict]]:
+    """Load a dictionary and the effective source policy (None unless NCCR RDF metadata).
 
     - ``foo.json``            -> JSON marginals dictionary
     - ``nccr_instances.ttl``  -> local NCCR RDF metadata (requires --source)
     - ``remote`` / ``nccr``   -> published NCCR RDF metadata (requires --source)
+
+    A value set on the command line (--value-mode, --var-value-mode, --no-frequency) beats
+    the built-in source policy, as an explicit config value does.
     """
     spec = args.dictionary
     if not _is_rdf_spec(spec):
-        return DataDictionary.load(spec)
+        return DataDictionary.load(spec), None
 
     source = getattr(args, "source", None)
     if not source:
@@ -39,11 +53,55 @@ def _load_dictionary(args: argparse.Namespace) -> DataDictionary:
             "--source is required when loading NCCR RDF metadata (e.g. --source CTC). "
             "Run 'synthpediatric sources <ttl|remote>' to list available datasources."
         )
-    from .nccr_rdf import build_dictionary, load_graph
+    from .config import ConfigError
+    from .recipe import _load_dictionary as load_rdf
 
-    sources = None if spec.lower() in _REMOTE_KEYWORDS else [spec]
-    graph = load_graph(sources)
-    return build_dictionary(graph, source, value_mode=getattr(args, "value_mode", "label"))
+    value_mode = getattr(args, "value_mode", None)
+    no_frequency = getattr(args, "no_frequency", None)
+    cfg = {
+        "metadata": spec, "source": source, "value_mode": value_mode or "label",
+        "no_frequency": no_frequency or "uniform",
+        "value_modes": _parse_var_modes(getattr(args, "var_value_mode", None)),
+        "explicit": [
+            k for k, v in (("value_mode", value_mode), ("no_frequency", no_frequency)) if v
+        ],
+    }
+    try:
+        d = load_rdf(cfg)
+        return d, d.source_policy
+    except ConfigError as exc:
+        raise SystemExit(f"config error: {exc}")
+
+
+def _load_dictionary(args: argparse.Namespace) -> DataDictionary:
+    return _load_with_policy(args)[0]
+
+
+def _table_tag(source: Optional[str]) -> str:
+    from .source_policy import TABLE_LABEL
+
+    return f"[{TABLE_LABEL}: {source}]" if source else f"[{TABLE_LABEL}]"
+
+
+def _print_labels(report: dict, policy: Optional[dict]) -> None:
+    """Say what the table is (unlinked, single source) and what was dropped or invented."""
+    from .conformance import report_lines
+    from .source_policy import LINKAGE_STATEMENT
+
+    print(LINKAGE_STATEMENT)
+    for line in report_lines(report):
+        print(line)
+    if policy:
+        parts = []
+        nf = policy["no_frequency"]
+        if nf["supplied_by"] != "default":
+            parts.append(f"no_frequency={nf['value']} ({nf['supplied_by']})")
+        for var, e in policy["value_modes"].items():
+            parts.append(f"{var}={e['value']} ({e['supplied_by']})")
+        if policy["survival"]["value"] == "refuse":
+            parts.append(f"survival=refuse ({policy['survival']['supplied_by']})")
+        if parts:
+            print(f"Source policy [{policy['source']}]: " + "; ".join(parts))
 
 
 def _write_frame(df: pd.DataFrame, out: Path) -> None:
@@ -91,16 +149,29 @@ def cmd_profile(args: argparse.Namespace) -> int:
 
 
 def cmd_generate(args: argparse.Namespace) -> int:
-    d = _load_dictionary(args)
+    from .conformance import generation_report
+    from .recipe import _without
+
+    loaded, policy = _load_with_policy(args)
+    mode = policy["no_frequency"]["value"] if policy else "uniform"
+    report = generation_report(loaded, mode)
+    invented = report["invented"]
+    d = _without(loaded, invented) if mode == "suppress" and invented else loaded
     ruleset: Optional[RuleSet] = None
     if args.rules:
         ruleset = RuleSet.from_json(args.rules)
 
     result = generate(d, n=args.n, rng=args.seed, ruleset=ruleset)
+    if mode == "nullify":  # sampled first, blanked at the end, as in `run`
+        for name in invented:
+            result.data[name] = None
+        d = _without(d, invented)  # blank columns are not scored
     out = Path(args.out)
     _write_frame(result.data, out)
 
-    print(f"Generated {len(result.data):,} synthetic records -> {out}")
+    tag = _table_tag(loaded.source_id)
+    print(f"Generated {len(result.data):,} synthetic records -> {out}  {tag}")
+    _print_labels(report, policy)
     if ruleset is not None:
         print(f"Consistency rules applied: {len(ruleset.constraints)}")
         if result.total_repairs:
@@ -138,7 +209,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"  {entry['order']:>3} {entry['name']:<12} {entry['status']:<9} {entry['reason']}")
     for msg in bundle["warnings"]:
         print(f"warning: {msg}")
-    print(f"Generated {len(df):,} records -> {path}/")
+    print(f"Generated {len(df):,} records -> {path}/  {_table_tag(bundle.get('source'))}")
+    _print_labels(bundle["report"], bundle.get("source_policy"))
     if result.total_repairs:
         print(f"Consistency repairs: {result.total_repairs:,}")
     print("Wrote: cohort, coverage.csv, conformance.csv, fidelity.csv,")
@@ -147,7 +219,13 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_evaluate(args: argparse.Namespace) -> int:
-    d = _load_dictionary(args)
+    from .conformance import generation_report
+    from .recipe import _without
+
+    d, policy = _load_with_policy(args)
+    invented = generation_report(d)["invented"]
+    if policy and policy["no_frequency"]["value"] in ("nullify", "suppress") and invented:
+        d = _without(d, invented)  # blank or removed columns are not scored
     path = Path(args.cohort)
     if path.suffix.lower() == ".csv":
         df = pd.read_csv(path)
@@ -170,7 +248,16 @@ def _print_fidelity(d: DataDictionary, df: pd.DataFrame) -> None:
             f"{row['tv_distance']:>13.4f} {row['max_abs_diff']:>14.4f}"
         )
     print("-" * len(header))
-    print(f"{'OVERALL (mean TVD)':<24} {'':>8} {overall_score(report):>13.4f}")
+    summary = fidelity_summary(report)
+    published = summary["overall_tv_distance_published"]
+    shown = f"{published:>13.4f}" if published is not None else f"{'n/a':>13}"
+    print(f"{'OVERALL (published)':<24} {'':>8} {shown}")
+    if summary["invented_columns"]:
+        print(
+            f"{summary['invented_columns']} invented (uniform fallback) columns are listed "
+            "above but not in the overall score; mean over all columns incl. invented: "
+            f"{summary['overall_tv_distance_all_columns']:.4f}"
+        )
     print(f"\n{PROVENANCE_STATEMENT}")
 
 
@@ -196,8 +283,15 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument(
             "--value-mode",
             choices=("label", "code"),
-            default="label",
+            default=None,
             help="use human-readable value labels (default) or raw code notations",
+        )
+        p.add_argument(
+            "--var-value-mode",
+            action="append",
+            metavar="NAME=MODE",
+            help="value mode for one variable (label or code); repeatable; beats the "
+            "source policy and --value-mode",
         )
 
     p_sources = sub.add_parser("sources", help="list NCCR datasources in RDF metadata")
@@ -219,6 +313,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--evaluate", action="store_true", help="print the fidelity scorecard after generating"
     )
     _add_rdf_opts(p_gen)
+    p_gen.add_argument(
+        "--no-frequency", choices=("uniform", "nullify", "suppress"), default=None,
+        help="columns with no published counts: fill uniformly, leave blank, or remove "
+        "(default: the source policy, else uniform)",
+    )
     p_gen.set_defaults(func=cmd_generate)
 
     p_run = sub.add_parser("run", help="run a generation config (YAML or JSON; reproducible)")

@@ -93,8 +93,16 @@ synthpediatric evaluate remote --source CTC out/ctc.parquet
 ```
 
 NCCR sources: `CTC` (registry), `ABM`, `CCDI`, `COG`, `MCD`, `MCE`, `MCP`, `PHARM`,
-`RO`. Add `--value-mode code` to use raw code notations instead of labels. For repeat
-runs, download `nccr_instances.ttl` once and pass its path instead of `remote`.
+`RO`. Add `--value-mode code` to use raw code notations instead of labels, or
+`--var-value-mode NAME=code` for one variable. For repeat runs, download
+`nccr_instances.ttl` once and pass its path instead of `remote`.
+
+**Each source is an unlinked, single-source table.** Rows cannot be joined across sources:
+the published metadata has no participant key. Every run says which variables it dropped
+(no value set in the metadata) and which it invented (a value set but no published count),
+and a per-source policy sets a few defaults (MCE blanks its uncounted columns, PHARM reads
+`medicationDispenseDuration` as a code, survival is refused outside CTC). See
+[docs/sources.md](docs/sources.md) for what each of the nine sources gives you.
 
 ## Config-driven runs (`synthpediatric run`)
 
