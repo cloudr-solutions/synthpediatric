@@ -12,6 +12,11 @@ real extract (CGC) --measure--> freqs/ crosstabs/ survival/ + manifest --run--> 
 It does one source table at a time and links nothing across sources. Validation measures
 (TVD, discriminator and so on) live in [validation.md](validation.md), not here.
 
+## Install
+Full steps, version notes and the offline route are in [cgc-quickstart.md](cgc-quickstart.md).
+In short: `pip install "synthpediatric[yaml] @ git+https://github.com/cloudr-solutions/synthpediatric.git"`.
+YAML configs need the `[yaml]` extra (JSON configs need none). The `examples/` folder used
+below is only present in a clone of the repository, not after a pip install.
 ## Quick start
 
 ```bash
