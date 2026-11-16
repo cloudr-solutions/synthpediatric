@@ -1,0 +1,20 @@
+# Generator config that uses the measure output unchanged.
+# Run after `synthpediatric measure examples/measure/measure_config.yaml`:
+#   synthpediatric run examples/measure/generate_from_measured.yaml
+name: Cohort from measured aggregates
+metadata: examples/nccr_ctc_dictionary.json
+n: 40000
+seed: 11
+profile: full
+targets:
+  overrides:
+    tables: out/measure/aggregates/freqs/            # every variable's frequency table
+  joints:
+    cliques:
+      - [sex, age_group]
+    crosstabs: out/measure/aggregates/crosstabs/sex_age.csv
+  survival:
+    group_col: iccc_category
+    horizon_months: 120                              # same as the measure config
+    specs: out/measure/aggregates/survival/survival_by_iccc.json
+outputs: {dir: out/measure/regenerated}

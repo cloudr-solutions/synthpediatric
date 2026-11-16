@@ -1,0 +1,23 @@
+# Stand-in for the real participant-level extract, for trying the measure toolkit offline.
+# It has cross-variable structure (sex x age) and survival by ICCC category, like real data.
+# Run:  synthpediatric run examples/measure/standin_generate.yaml
+name: Measure stand-in cohort
+metadata: examples/nccr_ctc_dictionary.json
+n: 40000
+seed: 7
+profile: full
+targets:
+  joints:
+    cliques:
+      - [sex, age_group]
+    crosstabs: examples/profiles/crosstab_sex_age.csv
+  survival:
+    group_col: iccc_category
+    horizon_months: 120
+    specs:
+      "V Retinoblastoma": {s5: 0.97}
+      "I Leukemias": {points: {12: 0.97, 60: 0.88, 120: 0.82}}
+      "VII Hepatic": {points: {12: 0.90, 60: 0.70, 120: 0.60}}
+      "III CNS": {median_months: 150}
+      __default__: {s5: 0.85}
+outputs: {dir: out/measure/standin}

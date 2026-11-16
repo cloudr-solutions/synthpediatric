@@ -1,0 +1,31 @@
+# Measure config: what the Input team runs inside CGC on the real extract.
+# Here it points at the stand-in cohort so you can try it offline:
+#   synthpediatric run examples/measure/standin_generate.yaml
+#   synthpediatric measure examples/measure/measure_config.yaml
+# Then plug the results into a generator config: examples/measure/generate_from_measured.yaml
+name: Measure stand-in cohort
+data: out/measure/standin/cohort.csv     # one CSV/parquet file, or a list of them
+# rename:                                # extract column -> NCCR variable name
+#   SEX_CODE: sex
+# labels:                                # extract value -> NCCR label, per variable
+#   sex: {"1": Male, "2": Female}
+# dictionary: examples/nccr_ctc_dictionary.json   # optional: check names and labels
+threshold: 16                            # cells below this are suppressed (default 16)
+# cohort:                                # optional filter, applied to the raw extract values
+#   name: Leukemias
+#   filters:
+#     - {variable: iccc_category, op: equals, values: ["I Leukemias"]}
+frequencies: [iccc_category, sex, age_group, diagnosis_year_group, vital_status]
+crosstabs:
+  - {name: sex_age, variables: [sex, age_group]}
+survival:
+  - name: survival_by_iccc
+    group: iccc_category
+    time: months
+    event: event
+    horizon_months: 120
+    time_points: [12, 36, 60, 120]
+    s5: true
+    median: true
+    form: points                         # the form written to survival/<name>.json
+outputs: {dir: out/measure/aggregates}
