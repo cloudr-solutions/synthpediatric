@@ -179,12 +179,13 @@ def test_legacy_unmatched_oversample_value_is_warned_not_fatal():
 @pytest.mark.parametrize("profile", sorted(PROFILES))
 def test_profile_expands_to_documented_bundle(profile):
     status = _status(_all_rules_config(profile=profile))
-    # the test config configures every rule except `overrides` (it needs a file)
+    # the test config configures every rule except `overrides` (it needs a file) and
+    # `conditional` (it needs its own dictionary, see tests/test_conditional.py)
     applied = {n for n, s in status.items() if s == "applied"}
     skipped = {n for n, s in status.items() if s == "skipped"}
     in_profile = set(PROFILES[profile])
-    assert applied == in_profile - {"overrides"}
-    assert skipped == in_profile & {"overrides"}
+    assert applied == in_profile - {"overrides", "conditional"}
+    assert skipped == in_profile & {"overrides", "conditional"}
     assert {n for n, s in status.items() if s == "disabled"} == set(RULES) - in_profile
 
 
@@ -236,7 +237,8 @@ def normalize_and_resolve(cfg):
 def test_execution_order_is_fixed_and_documented():
     order = [r["name"] for r in normalize_and_resolve(_all_rules_config())]
     assert order == [
-        "marginals", "overrides", "cohort", "oversample", "joints", "constraints", "survival"
+        "marginals", "overrides", "cohort", "oversample", "joints", "conditional", "constraints",
+        "survival",
     ]
 
 

@@ -1,0 +1,64 @@
+# PLACEHOLDER numbers, illustrative only. Every number in this file and in crosstabs/ is invented.
+# Same rule as age_sex_by_iccc_placeholder.yaml, but the age and sex numbers come from CSV
+# cross-tabs (columns: the group variable, the target variable, count) instead of inline rows.
+# Run:  python examples/conditional/run_example.py \
+#         examples/conditional/age_by_iccc_crosstab_placeholder.yaml --metadata <your snapshot> --out out/conditional_crosstab
+name: PLACEHOLDER conditional - age and sex by ICCC group from cross-tab files
+metadata: nccr_instances.ttl   # point this at your NCCR snapshot (run_example.py --metadata overrides it)
+source: CTC
+n: 50000
+seed: 7
+profile: standard
+cohort:
+  name: PLACEHOLDER four groups
+  filters:
+    - variable: icccMajor
+      op: equals
+      values:
+        - "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases"
+        - "II. Lymphomas and reticuloendothelial neoplasms"
+        - "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms"
+        - "V. Retinoblastoma"
+targets:
+  conditional:
+    provenance:
+      source: PLACEHOLDER cross-tab files
+      date: "2000-01-01"
+      origin: assumption
+    group:
+      variable: icccMajor
+      labels:
+        Leukemias: "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases"
+        Lymphomas: "II. Lymphomas and reticuloendothelial neoplasms"
+        CNS: "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms"
+        Retinoblastoma: "V. Retinoblastoma"
+      mix:
+        basis: counts
+        values: {Leukemias: 300, Lymphomas: 200, CNS: 250}   # PLACEHOLDER
+    scope:
+      age_years: [0, 19]
+    age:
+      anchor: ageRecode19Groups
+      bins:
+        "0-4": {years: [0, 4]}
+        "5-9": {years: [5, 9]}
+        "10-14": {years: [10, 14]}
+        "15-19": {years: [15, 19]}
+      # No split here: the age file counts the anchor bands '00 years' and '01-04 years'
+      # separately, so the union split comes from the counts.
+    targets:
+      - variable: ageRecode19Groups
+        basis: counts
+        # Paths are relative to the directory you run from (the repository root).
+        file: examples/conditional/crosstabs/age_by_iccc_placeholder.csv   # icccMajor, ageRecode19Groups, count
+      - variable: sex
+        basis: counts
+        file: examples/conditional/crosstabs/sex_by_iccc_placeholder.csv   # icccMajor, sex, count
+    uncovered:
+      groups:
+        Retinoblastoma:
+          share: 40
+          targets:
+            ageRecode19Groups: published_age_mix
+            sex: same_as_covered_total
+outputs: {dir: out/conditional/age_by_iccc_crosstab}
