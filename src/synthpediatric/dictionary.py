@@ -33,6 +33,9 @@ class VariableMarginal:
     categories: List[Any]
     weights: np.ndarray = field(repr=False)
     frequency_source: str = "published"  # "published" | "uniform" (no published freqs)
+    # NCCR loader only (see ``nullcodes.variable_na_info``): summed published counts, the
+    # kind of every value and which values carry a count. None for a JSON dictionary.
+    na_info: Optional[Dict[str, Any]] = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         self.weights = np.asarray(self.weights, dtype=float)

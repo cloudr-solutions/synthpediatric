@@ -27,6 +27,7 @@ import numpy as np
 
 from .config import ConfigError, unknown_message
 from .dictionary import DataDictionary, VariableMarginal
+from .nullcodes import load_overrides, merge_overrides, variable_na_info
 
 # Raw Turtle published by the NCCR metadata project (main branch).
 _RAW_BASE = "https://raw.githubusercontent.com/NCI-DCCPS/nccr-metadata/main"
@@ -54,7 +55,7 @@ _MARGINALS_QUERY = """
 PREFIX nccr: <https://nccrdataplatform.ccdi.cancer.gov/vocab#>
 PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-SELECT ?sid ?col ?vlabel ?stype ?notation ?plabel ?rc WHERE {
+SELECT ?sid ?col ?vlabel ?stype ?notation ?plabel ?desc ?rc WHERE {
     ?var a nccr:Variable ;
          nccr:sourceColumn ?col ;
          nccr:belongsToSource ?ds ;
@@ -66,6 +67,7 @@ SELECT ?sid ?col ?vlabel ?stype ?notation ?plabel ?rc WHERE {
     OPTIONAL { ?cv nccr:recordCount ?rc }
     OPTIONAL { ?cv skos:prefLabel ?plabel }
     OPTIONAL { ?cv skos:notation ?notation }
+    OPTIONAL { ?cv nccr:codeDescription ?desc }
 }
 """
 
@@ -192,8 +194,13 @@ def _build_marginals(
                 "label": str(row.vlabel) if row.vlabel is not None else col,
                 "vtype": str(row.stype) if row.stype is not None else "categorical",
                 "values": {},
+                "meta": {},  # value -> [(code, description)], for the null-code classifier
             }
             acc[sid][col] = var_acc
+        desc = str(row.desc) if row.desc is not None else (pref or notation or "")
+        var_acc["meta"].setdefault(value, []).append(
+            (notation if notation is not None else (pref or ""), desc)
+        )
         values = var_acc["values"]
         if value in values:
             if rc is not None:
@@ -212,6 +219,7 @@ def build_dictionary(
     no_frequency: str = "uniform",
     suppressed_fill: float = 0.0,
     value_modes: Optional[Mapping[str, str]] = None,
+    null_overrides: Optional[Mapping[str, Mapping[str, object]]] = None,
 ) -> DataDictionary:
     """Build a :class:`DataDictionary` for a single NCCR datasource.
 
@@ -228,6 +236,9 @@ def build_dictionary(
     - ``min_values``: skip value sets with fewer than this many permissible values.
     - ``value_modes``: per-variable override of ``value_mode`` (variable -> ``"label"`` or
       ``"code"``). A name that is not a variable of the source is a ``ConfigError``.
+    - ``null_overrides``: per-code corrections for the null-code classifier, on top of the
+      shipped ones (see ``nullcodes.load_overrides``). Each variable carries ``na_info``
+      (summed counts, the kind of each value) for the not-applicable fraction.
 
     Variables that are left out are not lost silently: ``dictionary.skipped`` maps each
     one to a reason in ``SKIP_REASONS`` (variables with no value set at all included).
@@ -269,6 +280,7 @@ def build_dictionary(
         c: "no_value_set" for c in all_columns if c not in marginals[source_id]
     }
 
+    overrides = merge_overrides(load_overrides(), null_overrides)
     variables: Dict[str, VariableMarginal] = {}
     for col, spec in marginals[source_id].items():
         values: Dict[str, Optional[float]] = spec["values"]
@@ -299,6 +311,10 @@ def build_dictionary(
             categories=cats,
             weights=weights,
             frequency_source=freq_source,
+            na_info=variable_na_info(
+                values, spec["meta"], source=source_id, variable=col, total=total,
+                overrides=overrides,
+            ),
         )
 
     if not variables:
