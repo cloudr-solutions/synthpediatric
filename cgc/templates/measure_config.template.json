@@ -1,0 +1,23 @@
+{
+  "name": "CTC measures, Jamboree day 1",
+  "data": "extract_ctc.csv",
+  "threshold": 16,
+  "frequencies": ["iccc_category", "sex", "age_group", "diagnosis_year_group", "vital_status"],
+  "crosstabs": [
+    {"name": "sex_age", "variables": ["sex", "age_group"]}
+  ],
+  "survival": [
+    {
+      "name": "survival_by_iccc",
+      "group": "iccc_category",
+      "time": "months",
+      "event": "event",
+      "horizon_months": 120,
+      "time_points": [12, 36, 60, 120],
+      "s5": true,
+      "median": true,
+      "form": "points"
+    }
+  ],
+  "outputs": {"dir": "measure_out"}
+}

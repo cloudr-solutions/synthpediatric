@@ -1,0 +1,49 @@
+# Measure config template for the Input team. Copy it next to your extract and edit it.
+#   synthpediatric measure measure_config.template.yaml      (needs the [yaml] extra)
+# No repo paths are used, so it works after a plain pip install. Paths are relative to the
+# folder you run the command in.
+#
+# CAUTION: the variable names and category labels below are stand-ins taken from
+# docs/measure.md. This template was tested only on a stand-in extract on macOS. It has not
+# been checked against the real NCCR labels or in CGC. Use rename: and labels: to map your
+# columns and codes onto the NCCR names, and compare with the NCCR metadata.
+# Full key reference: ../../docs/measure.md (in a clone) or docs/measure.md on GitHub.
+
+name: CTC measures, Jamboree day 1       # free text, recorded in the manifest
+data: extract_ctc.csv                    # EDIT: one CSV or parquet file, or a list of files with the same columns
+
+# rename:                                # optional: extract column -> NCCR variable name
+#   SEX_CODE: sex
+# labels:                                # optional: extract value -> NCCR label, per variable
+#   sex: {"1": Male, "2": Female}
+# bins:                                  # optional: needed for continuous (non-integer) columns
+#   age_years: {edges: [0, 5, 10, 15, 20, 40], labels: ["00-04", "05-09", "10-14", "15-19", "20-39"]}
+# dictionary: nccr_ctc_dictionary.json   # optional: a JSON dictionary file to check names and labels against
+# strict: true                           # optional: true (default) makes an unknown label an error
+# cohort:                                # optional: measure only a subset of the rows
+#   name: Leukemias
+#   filters:
+#     - {variable: iccc_category, op: equals, values: ["I Leukemias"]}
+# max_levels: 200                        # optional: more distinct values than this in a column is an error
+
+threshold: 16                            # cells below this are suppressed. Do not lower without approval.
+
+frequencies: [iccc_category, sex, age_group, diagnosis_year_group, vital_status]   # one-way tables, one per variable
+
+crosstabs:                               # two-way (or more) tables
+  - {name: sex_age, variables: [sex, age_group]}
+
+survival:                                # Kaplan-Meier survival by group, from a time and an event column
+  - name: survival_by_iccc               # file name under survival/
+    group: iccc_category                 # the column that defines the groups
+    time: months                         # follow-up time in months
+    event: event                         # 0/1 or true/false
+    # event_values: [Dead]               # if the event column is text: which values count as the event
+    horizon_months: 120                  # follow-up after this is censored (default 120)
+    time_points: [12, 36, 60, 120]       # survival is reported at these months
+    s5: true                             # also report 5-year survival
+    median: true                         # also report median survival where defined
+    form: points                         # what survival/<name>.json holds: points | s5 | median_months
+    # time_resolution_months: 1          # times are rounded down to this step before the fit (default 1)
+
+outputs: {dir: measure_out}              # the folder you export; it must not exist or be empty
