@@ -45,19 +45,31 @@ class Constraint(ABC):
 class AllowedValuesConstraint(Constraint):
     """When ``trigger_col`` holds one of ``trigger_values``, ``target_col`` must
     be one of ``allowed_values``. Violations are repaired by resampling the
-    target from the allowed set."""
+    target from the allowed set.
+
+    With ``repair_to_null=True`` the target must instead be blank (NULL) whenever the
+    trigger matches: a violating target is set to NULL, ``allowed_values`` is not used
+    and is left out. Use this when the dictionary has no value that means "does not
+    apply". A NULL trigger never matches, so a blank trigger cell is not a violation."""
 
     trigger_col: str
     trigger_values: Sequence[Any]
     target_col: str
-    allowed_values: Sequence[Any]
+    allowed_values: Sequence[Any] = ()
     description: str = ""
     name: str = ""
+    repair_to_null: bool = False
 
     def __post_init__(self) -> None:
         if not self.name:
             self.name = f"{self.trigger_col}->{self.target_col}"
-        if not self.allowed_values:
+        if self.repair_to_null:
+            if self.allowed_values:
+                raise ValueError(
+                    f"constraint '{self.name}': repair_to_null cannot be combined "
+                    "with allowed_values"
+                )
+        elif not self.allowed_values:
             raise ValueError(f"constraint '{self.name}': allowed_values must be non-empty")
         self._trigger = list(self.trigger_values)
         self._allowed = list(self.allowed_values)
@@ -73,13 +85,21 @@ class AllowedValuesConstraint(Constraint):
     def find_violations(self, df: pd.DataFrame) -> pd.Series:
         self._check_columns(df)
         triggered = df[self.trigger_col].isin(self._trigger)
+        if self.repair_to_null:
+            return triggered & df[self.target_col].notna()
         out_of_range = ~df[self.target_col].isin(self._allowed)
         return triggered & out_of_range
 
     def repair(self, df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
         mask = self.find_violations(df)
         k = int(mask.sum())
-        if k:
+        if k and self.repair_to_null:
+            if isinstance(df[self.target_col].dtype, pd.CategoricalDtype):
+                df.loc[mask, self.target_col] = np.nan
+            else:
+                df[self.target_col] = df[self.target_col].astype(object)
+                df.loc[mask, self.target_col] = None
+        elif k:
             picks = rng.choice(len(self._allowed), size=k)
             df.loc[mask, self.target_col] = [self._allowed[i] for i in picks]
         return df
@@ -90,9 +110,10 @@ class AllowedValuesConstraint(Constraint):
             trigger_col=spec["trigger_col"],
             trigger_values=spec["trigger_values"],
             target_col=spec["target_col"],
-            allowed_values=spec["allowed_values"],
+            allowed_values=spec.get("allowed_values", ()),
             description=spec.get("description", ""),
             name=spec.get("name", ""),
+            repair_to_null=bool(spec.get("repair_to_null", False)),
         )
 
 
