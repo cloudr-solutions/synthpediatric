@@ -180,6 +180,10 @@ def test_fraction_on_the_fixture(tmp_path):
     assert s["status"] == "applied" and s["code"] == "Not applicable" and s["code_counted"]
     assert s["generated_share"] == pytest.approx(0.2, abs=1 / n)
     assert (df["stage"] == "Not applicable").mean() == pytest.approx(0.2 + 0.8 * 1 / 8, abs=0.03)
+    # the share of the code in the table: the uncovered 20% plus the published 10%
+    assert s["code_share_target"] == pytest.approx(0.3)
+    assert s["code_share_generated"] == (df["stage"] == "Not applicable").mean()
+    assert fr["gleason"]["code_share_target"] == pytest.approx(0.995)
     assert m["na_fraction"]["settings"]["mode_supplied_by"] == "default"
 
 

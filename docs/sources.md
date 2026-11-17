@@ -175,6 +175,10 @@ One row per dispensing (prescription fill), about 52 per covered patient in the 
   the column held numbers such as 212722 and 288868 as "days" (90 of 92 values); in `code`
   mode the 2000-row run gives 30 (1,100 rows), 28 (165), 10 (114), 5 (99), 7 (75). Set
   `value_modes: {medicationDispenseDuration: label}` to get the old behaviour back.
+  A check of a PHARM file against the dictionary must load it with the same modes (the run's
+  `dictionary.json` and `manifest.json` `source_policy.value_modes` say which), or the day
+  values look out of vocabulary: against a default `label` dictionary 18,339 of 20,000 rows
+  are flagged, against the run's own dictionary none.
 - **Caveats.** Three columns and no drug.
 
 ## RO: Radiation Oncology

@@ -195,9 +195,20 @@ The rule samples the age anchor and derives everything that depends on it.
   `ageRecode20Groups`, `ageRecodeSingle85p` and `ageRecodeSingle90p`. A variable whose label is
   one band is derived directly. A variable whose labels split the band is sampled inside it
   with its published weights. An age-named variable with an unparsable label is an error.
+  When several variables split the same band (the single-year recodes `ageRecodeSingle85p`
+  and `ageRecodeSingle90p`), the one with the most labels is drawn and the others take the
+  label that contains that year, so a record has one single-year age in every variable. The
+  manifest lists them under `details.age_links`; where the labels of a variable do not nest
+  inside the reference variable's, it keeps its own draw.
 - When the group is an ICCC variable, `iccc2017Recode` and `iccc2017ExtendedRecode` are
   derived from the major group (child label drawn from its published weights within the
-  major). These two are the only subgroup-level ICCC variables. `nccrSiteMorphRecodeLevel1` to
+  major). The extended recode is finer than the recode (`Ia1`, `Ia2` inside `Ia`), so it is
+  drawn inside the label of `iccc2017Recode`, matched by Roman numeral and letter; the
+  manifest lists this under `details.hierarchy.nested`. If the labels do not match one to
+  one, both are drawn from the major group independently, as before. The extended recode's
+  own headings (for example `IX SOFT TISSUE...`) belong to the headings of the recode, which
+  has no published count, so they are not drawn. These two are the only subgroup-level ICCC
+  variables. `nccrSiteMorphRecodeLevel1` to
   `5` are site and morphology recodes, not ICCC, so they are not derived. For any other group
   variable the manifest says `hierarchy: none detected`.
 - `conditional_derivation.csv` lists every derivation (source label, variable, derived label,
