@@ -44,10 +44,13 @@ run 0.0186, because the uniform columns were scored against themselves. MCE with
 
 ## Known issues that apply to every source (not fixed here)
 
-- **Subpopulation-only variables are normalised to the whole table.** A variable whose
-  published counts cover only part of the records (CTC has 17 below 50%, such as the
-  Gleason and PSA fields) still gets a value in every row. There is no "not applicable"
-  fraction.
+- **Subpopulation-only variables (resolved).** A variable whose published counts cover only
+  part of the records (CTC has 17 below 50%, such as the Gleason and PSA fields) used to
+  get a value in every row, because the counts were normalised to 1. The not-applicable
+  fraction now gives the uncovered share of rows the variable's own not-applicable code, or
+  a blank when it has none. It is on by default for the NCCR sources and recorded in the
+  manifest as `na_fraction`. See [null-codes.md](null-codes.md). The `generate` command
+  does not apply it (only `run` and recipes do).
 - **Suppressed cells are never sampled.** A value without a count (a cell under 16
   records, or a header placeholder such as `Exact grays`) gets weight 0 inside a counted
   variable. Rare values therefore never appear (RO `radiation_anatomic_site`: 231 values,
@@ -58,7 +61,10 @@ run 0.0186, because the uniform columns were scored against themselves. MCE with
 - **Columns are independent.** Each column is drawn on its own from its marginal. Without
   consistency rules, values can disagree within a row.
 - **Sentinel labels are ordinary categories**: `Missing`, `Unknown`,
-  `No Data Available ...` are sampled at their published frequency.
+  `No Data Available ...` are sampled at their published frequency. They are now classified
+  (not applicable, unknown, no data, not performed) in the null-code map, see
+  [null-codes.md](null-codes.md); the classification is used to pick the not-applicable fill,
+  and does not change how the counted values are sampled.
 - **Size.** Nothing is chunked. MCE at 100,000 rows needs about 2 GB of memory and 31 s,
   mostly to write the 361 columns; the claims sources at their real size (56 to 66 million
   rows) are out of reach.

@@ -223,6 +223,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"warning: {msg}")
     print(f"Generated {len(df):,} records -> {path}/  {_table_tag(bundle.get('source'))}")
     _print_labels(bundle["report"], bundle.get("source_policy"))
+    if bundle.get("na_plan") is not None:
+        from .nullcodes import na_summary_lines
+
+        for line in na_summary_lines(bundle["na_plan"].report()):
+            print(line)
     if result.total_repairs:
         print(f"Consistency repairs: {result.total_repairs:,}")
     print("Wrote: cohort, coverage.csv, conformance.csv, fidelity.csv,")
@@ -274,6 +279,42 @@ def _print_fidelity(d: DataDictionary, df: pd.DataFrame) -> None:
             f"{summary['overall_tv_distance_all_columns']:.4f}"
         )
     print(f"\n{PROVENANCE_STATEMENT}")
+
+
+def cmd_nullcodes(args: argparse.Namespace) -> int:
+    from . import nullcodes
+    from .nccr_rdf import load_graph
+
+    if not _is_rdf_spec(args.metadata):
+        raise SystemExit("nullcodes: expected NCCR RDF metadata (a local .ttl file or 'remote')")
+    sources = None if args.metadata.lower() in _REMOTE_KEYWORDS else [args.metadata]
+    try:
+        overrides = nullcodes.merge_overrides(
+            nullcodes.load_overrides(),
+            nullcodes.load_overrides(args.overrides) if args.overrides else None,
+        )
+    except ValueError as exc:
+        raise SystemExit(f"nullcodes: {exc}")
+    graph = load_graph(sources)
+    codes = nullcodes.collect_codes(graph, args.source)
+    if not codes:
+        raise SystemExit(f"nullcodes: no permissible values found for source '{args.source}'")
+    origin = args.metadata if sources is None else Path(args.metadata).name
+    data = nullcodes.build_map(codes, overrides, generated_from=origin)
+    out = nullcodes.write_map(data, args.out)
+    summary = nullcodes.summary_markdown(data)
+    if args.summary:
+        Path(args.summary).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.summary).write_text(summary, encoding="utf-8")
+    t = data["totals"]
+    print(
+        f"Classified {t['values']:,} permissible values: {t['null_type']:,} null-type "
+        f"({', '.join(f'{k} {t[k]:,}' for k in nullcodes.NULL_KINDS)}), {t['real']:,} real."
+    )
+    print(f"False positives kept real: {len(data['false_positives'])}")
+    also = f" and the summary to {args.summary}" if args.summary else ""
+    print(f"Wrote the map to {out}{also}")
+    return 0
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -369,6 +410,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_eval.add_argument("cohort", help="path to a generated .csv or .parquet cohort")
     _add_rdf_opts(p_eval)
     p_eval.set_defaults(func=cmd_evaluate)
+
+    p_null = sub.add_parser(
+        "nullcodes",
+        help="classify every permissible value as not applicable / unknown / no data / "
+        "not performed / real and write the null-code map",
+    )
+    p_null.add_argument("metadata", help="a local NCCR .ttl file or 'remote'")
+    p_null.add_argument("--source", help="only this datasource (default: all nine)")
+    p_null.add_argument("--overrides", help="extra per-code overrides file (JSON)")
+    p_null.add_argument("-o", "--out", required=True, help="map file to write (JSON)")
+    p_null.add_argument("--summary", help="also write the human-readable summary (Markdown)")
+    p_null.set_defaults(func=cmd_nullcodes)
 
     p_val = sub.add_parser(
         "validate", help="compare synthetic cohort(s) with a real cohort (discriminator AUC etc.)"

@@ -25,11 +25,26 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Union
 
 from .calibrate import generate_calibrated
-from .config import ConfigError, config_hash, effective_strict, load_config, normalize_config
+from .config import (
+    ConfigError,
+    config_hash,
+    effective_strict,
+    load_config,
+    normalize_config,
+    unknown_message,
+)
 from .conformance import conformance_report, coverage_report, generation_report
 from .dictionary import DataDictionary
-from .evaluate import fidelity_summary, marginal_fidelity
+from .evaluate import fidelity_summary
 from .generate import generate
+from .nullcodes import (
+    DEFAULT_MIN_SHARE,
+    NaPlan,
+    NaThenRules,
+    fidelity_among_counted,
+    plan_na_fraction,
+    protected_variables,
+)
 from .rules import Context, resolve_rules, run_preflight, run_stage
 from .source_policy import (
     LINKAGE_STATEMENT,
@@ -70,11 +85,20 @@ def _load_dictionary(cfg: Mapping[str, Any]) -> DataDictionary:
         value_modes=cfg.get("value_modes"),
         override=cfg.get("source_policy"),
         columns=source_columns(graph, source),
+        na_fraction=(cfg.get("na_fraction") or {}).get("mode"),
     )
+    null_overrides = None
+    if (cfg.get("na_fraction") or {}).get("overrides"):
+        from .nullcodes import load_overrides
+
+        try:
+            null_overrides = load_overrides(cfg["na_fraction"]["overrides"])
+        except ValueError as exc:
+            raise ConfigError(f"na_fraction.overrides: {exc}") from exc
     # Always load with the uniform fallback; the `no_frequency` mode is applied below.
     d = build_dictionary(
         graph, source, value_mode=policy["value_mode"]["value"], no_frequency="uniform",
-        value_modes=loader_value_modes(policy),
+        value_modes=loader_value_modes(policy), null_overrides=null_overrides,
     )
     d.source_policy = policy
     return d
@@ -140,8 +164,12 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
     run_stage(ctx, resolved, "generate")
 
     n, seed = cfg["n"], cfg["seed"]
+    na_plan = _plan_na_fraction(cfg, policy, loaded, ctx, seed)
     # With a `conditional` rule the constraints run last, on the conditional columns.
     ruleset = None if ctx.conditional is not None else ctx.ruleset
+    if na_plan is not None and ctx.conditional is None:
+        # The not-applicable share is set on the sampled table, then the rules repair it.
+        ruleset = NaThenRules(na_plan, ruleset)
     if ctx.joint is not None:
         result = generate_calibrated(ctx.dictionary, ctx.joint, n, rng=seed, ruleset=ruleset)
     else:
@@ -149,6 +177,8 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
     if ctx.conditional is not None:
         from . import conditional
 
+        if na_plan is not None:  # before finalize, whose constraints then repair the result
+            na_plan.apply(result.data)
         result = conditional.finalize(ctx, result)
     ctx.df = result.data
 
@@ -164,7 +194,8 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
     validation = None
     if validate_block is not None:
         validation = run_configured_validation(
-            validate_block, ctx.df, ctx.dictionary, seed=seed, exclude=nullified,
+            validate_block, ctx.df, ctx.dictionary, seed=seed,
+            exclude=nullified + (na_plan.applied if na_plan is not None else []),
             label="run",
         )
 
@@ -179,7 +210,36 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
         "report": generation_report(loaded, mode),
         "validation": validation,
         "extra_tables": ctx.extra_tables,
+        "na_plan": na_plan,
     }
+
+
+def _plan_na_fraction(
+    cfg: Mapping[str, Any], policy: Optional[Mapping[str, Any]], loaded: DataDictionary,
+    ctx: Context, seed: Optional[int],
+) -> Optional[NaPlan]:
+    """The not-applicable fraction for this run, or None (JSON dictionary, or nothing to do).
+
+    Settings: the config's ``na_fraction`` block, else the source policy (on for NCCR
+    sources). A JSON dictionary has no policy and no record total, so it gets none.
+    """
+    if policy is None:
+        return None
+    block = cfg.get("na_fraction") or {}
+    variables = dict(block.get("variables") or {})
+    known = list(loaded.variables) + list(loaded.skipped)
+    for name in variables:
+        if name not in known:
+            raise ConfigError(unknown_message("na_fraction.variables", "variable", name, known))
+    mode = policy["na_fraction"]["value"]
+    if mode == "off" and "on" not in variables.values():
+        return None
+    plan = plan_na_fraction(
+        loaded, ctx.dictionary, mode=mode, mode_supplied_by=policy["na_fraction"]["supplied_by"],
+        min_share=block.get("min_share", DEFAULT_MIN_SHARE), variables=variables,
+        protected=protected_variables(ctx), seed=seed,
+    )
+    return plan
 
 
 def _dictionary_to_json(d: DataDictionary) -> Dict[str, Any]:
@@ -260,7 +320,10 @@ def write_run(
         variables={k: v for k, v in d.variables.items() if k not in nullified}, notes=d.notes,
     )
     conformance_report(d_scored, df).to_csv(out / "conformance.csv", index=False)
-    fidelity = marginal_fidelity(d_scored, df)
+    na_plan = bundle.get("na_plan")
+    # With a not-applicable share, fidelity compares the counted values among the rows that
+    # received them; the share itself is reported in the manifest.
+    fidelity = fidelity_among_counted(d_scored, df, na_plan)
     fidelity.to_csv(out / "fidelity.csv", index=False)
     for name, table in bundle.get("extra_tables", {}).items():
         table.to_csv(out / name, index=False)
@@ -305,6 +368,17 @@ def write_run(
         "source_policy": _policy_for_manifest(bundle.get("source_policy")),
         "coverage": {str(k): int(v) for k, v in cov_counts.items()},
     }
+    policy = bundle.get("source_policy")
+    if na_plan is not None:
+        manifest["na_fraction"] = na_plan.report()
+    elif policy is not None:  # NCCR source with the fraction off: say so and who decided
+        manifest["na_fraction"] = {
+            "settings": {
+                "mode": policy["na_fraction"]["value"],
+                "mode_supplied_by": policy["na_fraction"]["supplied_by"],
+            },
+            "n_applied": 0, "variables": {},
+        }
     if archive_info is not None:  # only runs with a zip get this key
         manifest["archive"] = archive_info
     # Per-variable NULL counts, only for scored columns that have any NULL: a run without

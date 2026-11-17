@@ -42,8 +42,8 @@ TARGET_KEYS = ("marginals", "overrides", "joints", "conditional", "survival")
 _LEGACY_KEYS = {"override_marginals": "marginals", "survival": "survival"}
 TOP_LEVEL_KEYS = (
     "name", "metadata", "source", "n", "seed", "profile", "value_mode", "value_modes",
-    "no_frequency", "source_policy", "missingness", "strict", "rules", "cohort", "targets",
-    "oversample", "constraints", "validate", "outputs",
+    "no_frequency", "source_policy", "na_fraction", "missingness", "strict", "rules", "cohort",
+    "targets", "oversample", "constraints", "validate", "outputs",
 )
 LEGACY_TOP_LEVEL_KEYS = tuple(_LEGACY_KEYS)
 VALIDATE_KEYS = (
@@ -324,6 +324,11 @@ def normalize_config(raw: Mapping[str, Any]) -> Dict[str, Any]:
     cfg["no_frequency"] = check_choice("no_frequency", mode, NO_FREQUENCY_MODES)
     if raw.get("source_policy") is not None:
         cfg["source_policy"] = normalize_source_policy("source_policy", raw["source_policy"])
+
+    if raw.get("na_fraction") is not None:  # written only when given
+        from .source_policy import normalize_na_fraction
+
+        cfg["na_fraction"] = normalize_na_fraction("na_fraction", raw["na_fraction"])
 
     missingness = check_choice("missingness", raw.get("missingness", "none"), MISSINGNESS_MODES)
     if missingness == "realistic":

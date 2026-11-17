@@ -1,0 +1,50 @@
+@prefix nccr: <https://nccrdataplatform.ccdi.cancer.gov/vocab#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix d: <https://nccrdataplatform.ccdi.cancer.gov/datasource/> .
+@prefix v: <https://nccrdataplatform.ccdi.cancer.gov/variable/> .
+@prefix s: <https://nccrdataplatform.ccdi.cancer.gov/valueset/> .
+@prefix c: <https://nccrdataplatform.ccdi.cancer.gov/code/> .
+# Offline fixture for the not-applicable fraction. Invented numbers, 10,000 records.
+#   sex       fully covered
+#   gleason   sub-population (0.5% covered), has an uncounted not-applicable code X8
+#   psa       sub-population (1% covered), no not-applicable code: the share is blank
+#   stage     gap, but its not-applicable code carries a count (not added twice)
+#   grade     gap of 10 records, one uncounted code: suppression, not sub-population
+d:ctc a nccr:DataSource ; nccr:sourceId "CTC" ;
+    nccr:sourceLabel "Consolidated Tumor Case" ; nccr:totalRecordCount 10000 .
+v:ctc-sex a nccr:Variable ; rdfs:label "Sex" ;
+    nccr:sourceColumn "sex" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ; nccr:hasValueSet s:ctc-sex .
+s:ctc-sex a skos:ConceptScheme .
+c:ctc-sex-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-sex ; skos:notation "1" ; skos:prefLabel "Male"@en ; nccr:codeDescription "Male" ; nccr:recordCount 5200 .
+c:ctc-sex-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-sex ; skos:notation "2" ; skos:prefLabel "Female"@en ; nccr:codeDescription "Female" ; nccr:recordCount 4800 .
+v:ctc-gleason a nccr:Variable ; rdfs:label "Gleason" ;
+    nccr:sourceColumn "gleason" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ; nccr:hasValueSet s:ctc-gleason .
+s:ctc-gleason a skos:ConceptScheme .
+c:ctc-gleason-6 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-gleason ; skos:notation "6" ; skos:prefLabel "Score 6"@en ; nccr:codeDescription "Score 6" ; nccr:recordCount 30 .
+c:ctc-gleason-7 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-gleason ; skos:notation "7" ; skos:prefLabel "Score 7"@en ; nccr:codeDescription "Score 7" ; nccr:recordCount 20 .
+c:ctc-gleason-X8 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-gleason ; skos:notation "X8" ; skos:prefLabel "Not applicable"@en ; nccr:codeDescription "Not applicable: Information not collected for this case" .
+c:ctc-gleason-X9 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-gleason ; skos:notation "X9" ; skos:prefLabel "Not documented"@en ; nccr:codeDescription "Not documented in medical record" .
+v:ctc-psa a nccr:Variable ; rdfs:label "PSA" ;
+    nccr:sourceColumn "psa" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ; nccr:hasValueSet s:ctc-psa .
+s:ctc-psa a skos:ConceptScheme .
+c:ctc-psa-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-psa ; skos:notation "1" ; skos:prefLabel "Low"@en ; nccr:codeDescription "Low" ; nccr:recordCount 40 .
+c:ctc-psa-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-psa ; skos:notation "2" ; skos:prefLabel "High"@en ; nccr:codeDescription "High" ; nccr:recordCount 60 .
+c:ctc-psa-9 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-psa ; skos:notation "9" ; skos:prefLabel "Unknown"@en ; nccr:codeDescription "Unknown" .
+v:ctc-stage a nccr:Variable ; rdfs:label "Stage" ;
+    nccr:sourceColumn "stage" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ; nccr:hasValueSet s:ctc-stage .
+s:ctc-stage a skos:ConceptScheme .
+c:ctc-stage-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-stage ; skos:notation "1" ; skos:prefLabel "Stage I"@en ; nccr:codeDescription "Stage I" ; nccr:recordCount 4000 .
+c:ctc-stage-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-stage ; skos:notation "2" ; skos:prefLabel "Stage II"@en ; nccr:codeDescription "Stage II" ; nccr:recordCount 3000 .
+c:ctc-stage-8 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-stage ; skos:notation "8" ; skos:prefLabel "Not applicable"@en ; nccr:codeDescription "Not applicable" ; nccr:recordCount 1000 .
+v:ctc-grade a nccr:Variable ; rdfs:label "Grade" ;
+    nccr:sourceColumn "grade" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ; nccr:hasValueSet s:ctc-grade .
+s:ctc-grade a skos:ConceptScheme .
+c:ctc-grade-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-grade ; skos:notation "1" ; skos:prefLabel "Grade 1"@en ; nccr:codeDescription "Grade 1" ; nccr:recordCount 5000 .
+c:ctc-grade-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-grade ; skos:notation "2" ; skos:prefLabel "Grade 2"@en ; nccr:codeDescription "Grade 2" ; nccr:recordCount 4990 .
+c:ctc-grade-3 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-grade ; skos:notation "3" ; skos:prefLabel "Grade 3"@en ; nccr:codeDescription "Grade 3" .

@@ -1,0 +1,4 @@
+{
+  "_help": "Per-code corrections to the null-code classifier. Key: SOURCE.variable.code, where '*' may replace the source or the variable (most specific key wins). Value: {kind, reason}; kind is one of not_applicable, unknown, no_data, not_performed, real. Empty today: the rules in nullcodes.py cover every published code. See docs/null-codes.md.",
+  "overrides": {}
+}

@@ -64,7 +64,9 @@ DEFAULT_POLICIES: Dict[str, Dict[str, Any]] = {
     "RO": {"survival": "refuse"},
 }
 
-GENERIC = {"no_frequency": "uniform", "value_mode": "label"}
+# ``na_fraction`` (see ``nullcodes``) is on for every NCCR source (generic default). A JSON
+# dictionary has no source policy at all, so it never gets the fraction.
+GENERIC = {"no_frequency": "uniform", "value_mode": "label", "na_fraction": "on"}
 
 
 def normalize_source_policy(where: str, value: Any) -> Dict[str, Any]:
@@ -91,6 +93,53 @@ def normalize_value_modes(where: str, value: Any) -> Dict[str, str]:
     }
 
 
+NA_FRACTION_KEYS = ("mode", "min_share", "variables", "overrides")
+
+
+def _on_off(where: str, value: Any, choices: Sequence[str]) -> str:
+    """``on``/``off``/``auto``; YAML turns bare on/off into booleans, so those are accepted."""
+    if value is True:
+        value = "on"
+    elif value is False:
+        value = "off"
+    return check_choice(where, value, choices)
+
+
+def normalize_na_fraction(where: str, value: Any) -> Dict[str, Any]:
+    """Shape-check the ``na_fraction`` setting: on / off, or a block.
+
+    ``mode`` (on | off), ``min_share`` (0 to 1), ``variables`` (name -> on | off | auto) and
+    ``overrides`` (path of a null-code overrides file). Variable names are checked later,
+    against the metadata. Only the keys given are written.
+    """
+    from .config import as_number, as_str
+    from .nullcodes import NA_MODES, NA_VARIABLE_CHOICES
+
+    if value is True or value is False or isinstance(value, str):
+        return {"mode": _on_off(where, value, NA_MODES)}
+    check_keys(where, value, NA_FRACTION_KEYS)
+    out: Dict[str, Any] = {}
+    if "mode" in value:
+        out["mode"] = _on_off(f"{where}.mode", value["mode"], NA_MODES)
+    if "min_share" in value:
+        share = as_number(f"{where}.min_share", value["min_share"], nonneg=True)
+        if share > 1:
+            raise ConfigError(f"{where}.min_share: must be between 0 and 1, got {share}")
+        out["min_share"] = share
+    if "variables" in value:
+        table = value["variables"]
+        if not isinstance(table, Mapping) or not table:
+            raise ConfigError(f"{where}.variables: expected a non-empty mapping of variable -> "
+                              "on|off|auto")
+        out["variables"] = {
+            str(v): _on_off(f"{where}.variables.{v}", m, NA_VARIABLE_CHOICES)
+            for v, m in table.items()
+        }
+    if "overrides" in value:
+        out["overrides"] = as_str(f"{where}.overrides", value["overrides"])
+    return out
+
+
 def _entry(value: Any, supplied_by: str) -> Dict[str, Any]:
     return {"value": value, "supplied_by": supplied_by}
 
@@ -103,6 +152,7 @@ def resolve_source_policy(
     value_modes: Optional[Mapping[str, str]] = None,
     override: Optional[Mapping[str, Any]] = None,
     columns: Optional[Sequence[str]] = None,
+    na_fraction: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Effective settings for one run.
 
@@ -160,7 +210,15 @@ def resolve_source_policy(
     for var, mode in (value_modes or {}).items():
         per_var[var] = _entry(mode, "config")
 
+    if na_fraction is not None:
+        na = _entry(na_fraction, "config")
+    elif "na_fraction" in defaults:
+        na = _entry(defaults["na_fraction"], "policy")
+    else:
+        na = _entry(GENERIC["na_fraction"], "default")
+
     return {
+        "na_fraction": na,
         "source": sid,
         "known_source": sid in DEFAULT_POLICIES,
         "person_table": sid in PERSON_TABLES,
