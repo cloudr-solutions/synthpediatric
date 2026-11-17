@@ -1,0 +1,7 @@
+name: MCD synthetic, 10 percent of published records
+metadata: "/Users/robotinr2/Github/NCI-DCCPS/AI-Work/SEER RFI-RFP/Jamboree-Handoff/demo/artifacts/nccr_instances.ttl"
+source: MCD
+n: 5666056
+seed: 2033
+profile: marginals_only
+outputs: {dir: "/Users/robotinr2/Github/NCI-DCCPS/AI-Work/SEER RFI-RFP/Synthetic-Data-2026-11-17/mcd_10pct/run", format: csv, archive: zip, archive_name: mcd_10pct}

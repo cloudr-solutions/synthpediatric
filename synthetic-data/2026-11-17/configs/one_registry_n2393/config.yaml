@@ -1,0 +1,108 @@
+# REAL aggregate numbers: childhood cancers in one state registry (not named), ages 0-19,
+# diagnosis years 2014-2023, age and sex by ICCC major group. Origin: an aggregate table from
+# NCCR data in CGC. Release: cleared for public use as synthesis inputs by the team lead,
+# 2026-11-16. Several cells are below 16, so the minimum-cell override is set explicitly below.
+# Test logic: follow the data dictionary (permissible values and published frequencies), then add
+# ONLY the rules taken from this table. No other rules (no consistency rules file) and no input
+# from any other table.
+# Docs: docs/conditional.md
+# Run (from the repository root):
+#   python examples/conditional/run_example.py examples/conditional/one_registry_age_sex_by_iccc.yaml \
+#       --metadata <your nccr_instances.ttl> --out out/conditional/one_registry
+name: Childhood cancers in one state registry, ages 0-19, 2014-2023 (age and sex by ICCC group)
+metadata: "/Users/robotinr2/Github/NCI-DCCPS/AI-Work/SEER RFI-RFP/Jamboree-Handoff/demo/artifacts/nccr_instances.ttl"   # point this at your NCCR snapshot (run_example.py --metadata overrides it)
+source: CTC
+n: 2393                        # real size (the cases in the table)
+seed: 2026
+profile: standard
+cohort:                        # ages 0-19; an 'equals' filter, because the variable also has an
+  name: Ages 0-19              # 'Unknown' label that a 'max' filter cannot order
+  filters:
+    - variable: ageRecode19Groups
+      op: equals
+      values: ["00 years", "01-04 years", "05-09 years", "10-14 years", "15-19 years"]
+targets:
+  conditional:
+    provenance:
+      source: "NCCR data in CGC, one state registry (not named): childhood cancers, ages 0-19, diagnosis years 2014-2023"
+      date: "2026-11-16"
+      origin: cgc_aggregate    # the default minimum cell for this origin is 16
+      min_cell: 0              # explicit override: the table has cells below 16 (see the reason)
+      override_reason: "Cleared for public use as synthesis inputs by the team lead, 2026-11-16."
+      note: >
+        The distributions describe one registry's cases, not all NCCR. Sex columns are used as
+        printed, as a ratio per group (Male + Female differs from the group number in several
+        rows). The age columns are the table's age weights. There is no unknown sex.
+    group:
+      variable: icccMajor
+      labels:                  # table label -> exact NCCR icccMajor label
+        Leukemias: "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases"
+        Lymphomas: "II. Lymphomas and reticuloendothelial neoplasms"
+        Brain and CNS: "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms"
+        Retinoblastoma: "V. Retinoblastoma"
+        Renal tumors: "VI. Renal Tumors"
+        Hepatic tumors: "VII. Hepatic Tumors"
+        Bone tumors: "VIII. Malignant Bone Tumors"
+        Soft tissue sarcomas: "IX. Soft Tissue And Other Extraosseous Sarcomas"
+        Germ cell and Gonadal Tumors: "X. Germ Cell Tumors, Trophoblastic Tumors And Neoplasms Of Gonads"
+        Epithelial neoplasms and melanomas: "XI. Other Malignant Epithelial Neoplasms And Malignant Melanomas"
+        Other and unspecified malignant neoplasms: "XII. Other And Unspecified Malignant Neoplasms"
+      mix:                     # the table's Number column
+        basis: counts
+        values:
+          Leukemias: 654
+          Lymphomas: 389
+          Brain and CNS: 379
+          Epithelial neoplasms and melanomas: 329
+          Soft tissue sarcomas: 185
+          Bone tumors: 146
+          Germ cell and Gonadal Tumors: 123
+          Renal tumors: 101
+          Hepatic tumors: 45
+          Retinoblastoma: 31
+          Other and unspecified malignant neoplasms: 11
+    scope:
+      age_years: [0, 19]
+    age:
+      anchor: ageRecode19Groups  # the other age variables are derived from it
+      bins:
+        "0-4": {years: [0, 4]}   # '00 years' + '01-04 years', split by the published ratio of the two
+        "5-9": {years: [5, 9]}
+        "10-14": {years: [10, 14]}
+        "15-19": {years: [15, 19]}
+    targets:
+      - variable: ageRecode19Groups
+        basis: percent
+        by_group:
+          Leukemias: {"0-4": 42.9, "5-9": 21.8, "10-14": 17.2, "15-19": 18.1}
+          Lymphomas: {"0-4": 12.3, "5-9": 15.1, "10-14": 24.7, "15-19": 47.9}
+          Brain and CNS: {"0-4": 32.9, "5-9": 26.9, "10-14": 21.9, "15-19": 18.3}
+          Epithelial neoplasms and melanomas: {"0-4": 2.9, "5-9": 5.3, "10-14": 21.2, "15-19": 70.6}
+          Soft tissue sarcomas: {"0-4": 25.1, "5-9": 16.9, "10-14": 24.6, "15-19": 33.4}
+          Bone tumors: {"0-4": 4.2, "5-9": 15.9, "10-14": 38.8, "15-19": 41.2}
+          Germ cell and Gonadal Tumors: {"0-4": 14.0, "5-9": 5.5, "10-14": 16.8, "15-19": 63.7}
+          Renal tumors: {"0-4": 67.3, "5-9": 20.6, "10-14": 5.4, "15-19": 6.8}
+          Hepatic tumors: {"0-4": 70.3, "5-9": 7.7, "10-14": 8.5, "15-19": 13.5}
+          Retinoblastoma: {"0-4": 95.9, "5-9": 3.4, "10-14": 0.6, "15-19": 0.2}
+          Other and unspecified malignant neoplasms: {"0-4": 37.8, "5-9": 9.1, "10-14": 15.3, "15-19": 37.8}
+      - variable: sex
+        basis: counts          # used as the ratio Male / (Male + Female); only these two values are generated
+        by_group:
+          Leukemias: {Male: 357, Female: 294}
+          Lymphomas: {Male: 106, Female: 221}
+          Brain and CNS: {Male: 229, Female: 159}
+          Epithelial neoplasms and melanomas: {Male: 224, Female: 155}
+          Soft tissue sarcomas: {Male: 107, Female: 78}
+          Bone tumors: {Male: 38, Female: 63}
+          Germ cell and Gonadal Tumors: {Male: 85, Female: 61}
+          Renal tumors: {Male: 64, Female: 59}
+          Hepatic tumors: {Male: 24, Female: 20}
+          Retinoblastoma: {Male: 17, Female: 14}
+          Other and unspecified malignant neoplasms: {Male: 5, Female: 6}
+    uncovered:                 # ICCC groups the table does not list
+      groups:
+        "IV. Neuroblastoma And Other Peripheral Nervous Cell Tumors":
+          share: exclude       # excluded: not reported for this registry
+        "Not classified by SEER or in situ":
+          share: exclude       # excluded: not reported for this registry
+outputs: {dir: "/Users/robotinr2/Github/NCI-DCCPS/AI-Work/SEER RFI-RFP/Synthetic-Data-2026-11-17/one_registry_n2393/run", format: csv, archive: zip, archive_name: one_registry_n2393}
