@@ -169,7 +169,16 @@ Use a constraint to tie it to a trigger.
 per-variable settings) and for every variable with a gap: `covered_share`,
 `uncovered_share`, `gap_records`, `max_suppressed_records`, `status` (`applied` or
 `skipped`), `reason`, `code` (the value used, `null` with `blank: true` for blank),
-`code_counted`, `generated_rows`, `generated_share`, `setting` and `supplied_by`. Conformance
+`code_counted`, `generated_rows`, `generated_share`, `code_share_target`,
+`code_share_generated`, `setting` and `supplied_by`. `target_share` and `generated_share`
+are the rows set to the code. When the code also has a published count (`code_counted`),
+the rows that held it already stay, so the share of the code in the table is higher:
+`code_share_target` is `uncovered_share` plus the code's published share, and
+`code_share_generated` is the share found after the fraction was set (null for blank).
+Compare the column in the CSV with these two, not with `target_share`. For a `code_counted`
+column the rows the fraction set cannot be told from the rows that held the code already, so
+a recomputation of `fidelity.csv` from the CSV alone differs from it in these columns (the
+manifest figure leaves the set rows out, a CSV recomputation keeps them). Conformance
 and fidelity use the null-aware functions: blank is not out of vocabulary and is counted in
 `n_null` of `conformance.csv` and `coverage_null_counts` of the manifest. Fidelity compares
 the counted values among the rows that received them; the generated not-applicable rows are

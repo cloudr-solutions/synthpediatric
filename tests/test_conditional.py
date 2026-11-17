@@ -641,6 +641,38 @@ def test_sampled_derivation_follows_published_weights(meta):
     assert sampled["probability"].tolist() == pytest.approx([0.75, 0.25])
 
 
+def test_single_year_variables_and_iccc_subgroups_agree_with_each_other(tmp_path):
+    spec = copy.deepcopy(DICTIONARY)
+    twin = {f"{y:02d} years": 5 + y * y for y in range(20)}  # other weights, other top group
+    twin["25+ years"] = 5
+    spec["variables"].append(_var("ageSingleTwin", twin))
+    ext = spec["variables"][6]["values"]  # icccExt: add the labels icccSub needs
+    ext += [{"value": v, "count": 1} for v in ("Ib1 Alpha two one", "IIb1 Beta two one",
+                                               "IVb1 Delta two one")]
+    path = tmp_path / "twin.json"
+    path.write_text(json.dumps(spec))
+    bundle = run_recipe(config(str(path), n=20000, seed=4))
+    df = bundle["data"]
+    assert (df["ageSingle"] == df["ageSingleTwin"]).all()
+    assert details(bundle)["age_links"] == {"ageSingleTwin": "ageSingle"}
+    assert details(bundle)["hierarchy"]["nested"] == {"icccExt": "icccSub"}
+    assert (df["icccExt"].str.extract(r"^([IVX]+[a-z])")[0]
+            == df["icccSub"].str.extract(r"^([IVX]+[a-z])")[0]).all()
+    assert (df["icccMajor"].map(_numeral) == df["icccExt"].map(_numeral)).all()
+    table = bundle["extra_tables"][DERIVATION_FILE]
+    linked = table[(table["variable"] == "ageSingleTwin")]
+    assert set(linked["method"]) == {"linked to ageSingle", "deterministic"}
+    # a subgroup variable that cannot nest (no icccExt label for 'Ib') keeps its own draw
+    plain = run_recipe(config(meta_path(tmp_path), n=500, seed=4))
+    assert "nested" not in details(plain)["hierarchy"]
+
+
+def meta_path(tmp_path):
+    path = tmp_path / "plain.json"
+    path.write_text(json.dumps(DICTIONARY))
+    return str(path)
+
+
 def test_unmappable_age_label_is_an_error(meta, tmp_path):
     bad = copy.deepcopy(DICTIONARY)
     bad["variables"].append(_var("ageGroupName", {"Children": 1, "Adults": 1}))

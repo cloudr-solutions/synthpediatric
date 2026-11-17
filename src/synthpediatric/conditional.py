@@ -354,6 +354,11 @@ class Plan:
     age_derivations: Dict[str, Dict[str, Tuple[List[str], np.ndarray]]]
     hierarchy: Dict[str, Dict[str, Tuple[List[str], np.ndarray]]]
     details: Dict[str, Any]
+    # variable -> (reference variable, anchor label -> {reference label: own label}): the
+    # variable takes its value from the reference variable's draw inside those anchor bands
+    age_links: Dict[str, Tuple[str, Dict[str, Dict[str, str]]]] = field(default_factory=dict)
+    # variable -> the variable its hierarchy table is keyed by (default: the group variable)
+    hierarchy_source: Dict[str, str] = field(default_factory=dict)
 
 
 def _base_variable(ctx: Any, name: str) -> Any:
@@ -587,6 +592,98 @@ def _hierarchy_derivation(
                 "method": "sampled", "probability": float(pr),
             })
     return table, rows
+
+
+def _link_age_variables(
+    tables: Mapping[str, Mapping[str, Tuple[List[str], np.ndarray]]],
+) -> Dict[str, Tuple[str, Dict[str, Dict[str, str]]]]:
+    """Variables whose labels split an anchor band take one shared draw per record.
+
+    Several derived age variables can split the same band (the 85+ and 90+ single-year
+    recodes differ only in their top group). Drawn separately they give a record two
+    different ages. The variable with the most labels is the reference; another variable
+    follows it in every band where each reference label lies inside exactly one of its own
+    labels. Elsewhere the variable keeps its own draw.
+    """
+    sampled = {v: t for v, t in tables.items() if any(len(ls) > 1 for ls, _ in t.values())}
+    if len(sampled) < 2:
+        return {}
+    ref = max(sampled, key=lambda v: sum(len(ls) for ls, _ in tables[v].values()))
+    links: Dict[str, Tuple[str, Dict[str, Dict[str, str]]]] = {}
+    for var in sampled:
+        if var == ref:
+            continue
+        per_band: Dict[str, Dict[str, str]] = {}
+        for a, (labels, _) in tables[var].items():
+            if len(labels) < 2:
+                continue
+            mapping: Optional[Dict[str, str]] = {}
+            for r in tables[ref][a][0]:
+                rb = parse_band(r)
+                hit = [
+                    lab for lab in labels
+                    if rb is not None and (b := parse_band(lab)) is not None
+                    and b[0] <= rb[0] and rb[1] <= b[1]
+                ]
+                if len(hit) != 1:
+                    mapping = None
+                    break
+                mapping[r] = hit[0]
+            if mapping:
+                per_band[a] = mapping
+        if per_band:
+            links[var] = (ref, per_band)
+    return links
+
+
+_ICCC_KEY = re.compile(r"^([IVX]+)([a-z])?\d*[ .]")
+
+
+def _iccc_key(label: str) -> Optional[Tuple[str, Optional[str]]]:
+    """(Roman numeral, subgroup letter) of an ICCC label; the letter is None for a heading."""
+    if label.startswith("Not classified"):
+        return ("NC", None)
+    m = _ICCC_KEY.match(label)
+    return (m.group(1), m.group(2)) if m else None
+
+
+def _nested_table(
+    ctx: Any, coarse: str, fine: str,
+    hierarchy: Mapping[str, Mapping[str, Tuple[List[str], np.ndarray]]],
+) -> Optional[Dict[str, Tuple[List[str], np.ndarray]]]:
+    """Labels of ``fine`` under each label of ``coarse`` (same numeral and letter), or None.
+
+    None when the metadata does not allow it: a label of either variable has no parseable
+    code, two coarse labels share a code, a fine label has no coarse label, a coarse label
+    that can be drawn has no fine label, or a fine label falls outside the group of its
+    coarse label.
+    """
+    by_key: Dict[Any, str] = {}
+    for label in _cats(ctx.dictionary.variables[coarse]):
+        if is_unknown(label):
+            continue
+        key = _iccc_key(label)
+        if key is None or key in by_key:
+            return None
+        by_key[key] = label
+    children: Dict[str, List[str]] = {}
+    fine_vm = ctx.dictionary.variables[fine]
+    for label in _cats(fine_vm):
+        if is_unknown(label):
+            continue
+        key = _iccc_key(label)
+        if key is None or key not in by_key:
+            return None
+        children.setdefault(by_key[key], []).append(label)
+    table = {c: (kids, _weights(fine_vm, kids)) for c, kids in children.items()}
+    for g, (labels, probs) in hierarchy[coarse].items():
+        allowed = set(hierarchy[fine][g][0])
+        for c, pr in zip(labels, probs):
+            if pr > 0 and c not in table:
+                return None
+            if any(k not in allowed for k in table.get(c, ([], None))[0]):
+                return None
+    return table
 
 
 # ----- table inputs ---------------------------------------------------------
@@ -1066,20 +1163,61 @@ def apply(ctx: Any, p: Dict[str, Any]) -> Dict[str, Any]:
     age_derivations: Dict[str, Dict[str, Tuple[List[str], np.ndarray]]] = {}
     hierarchy: Dict[str, Dict[str, Tuple[List[str], np.ndarray]]] = {}
     derivation_rows: List[Dict[str, Any]] = []
+    age_links: Dict[str, Tuple[str, Dict[str, Dict[str, str]]]] = {}
     if age is not None:
         bands = {b[0]: (b[1], b[2]) for b in _anchor_bands(ctx, anchor, where)}
         for v in derived_age:
             table, rows = _age_derivation(ctx, v, age["scope_labels"], bands, f"{where}.age")
             age_derivations[v] = table
             derivation_rows += rows
+        age_links = _link_age_variables(age_derivations)
+        for v, (ref, per_band) in age_links.items():
+            derivation_rows = [
+                r for r in derivation_rows
+                if not (r["variable"] == v and r["anchor_or_group_label"] in per_band)
+            ]
+            for a, mapping in per_band.items():
+                ref_labels, ref_probs = age_derivations[ref][a]
+                share: Dict[str, float] = {}
+                for r, pr in zip(ref_labels, ref_probs):
+                    share[mapping[r]] = share.get(mapping[r], 0.0) + float(pr)
+                for lab, pr in share.items():
+                    derivation_rows.append({
+                        "anchor_or_group_label": a, "variable": v, "derived_label": lab,
+                        "method": f"linked to {ref}", "probability": pr,
+                    })
+        if age_links:
+            details["age_links"] = {v: ref for v, (ref, _) in age_links.items()}
     else:
         details["age_variables"] = []
+    hierarchy_source: Dict[str, str] = {}
     if hier_vars:
         for v in hier_vars:
             table, rows = _hierarchy_derivation(ctx, gvar, generated_groups, v, where)
             hierarchy[v] = table
             derivation_rows += rows
+        # A finer subgroup variable follows a coarser one when the metadata allows it
+        # (iccc2017ExtendedRecode inside iccc2017Recode), so the two agree.
+        for fine in hier_vars:
+            for coarse in hier_vars:
+                if coarse == fine or coarse in hierarchy_source or fine in hierarchy_source:
+                    continue
+                nested = _nested_table(ctx, coarse, fine, hierarchy)
+                if nested is None:
+                    continue
+                hierarchy_source[fine] = coarse
+                derivation_rows = [r for r in derivation_rows if r["variable"] != fine]
+                for c, (kids, probs) in nested.items():
+                    for k, pr in zip(kids, probs):
+                        derivation_rows.append({
+                            "anchor_or_group_label": c, "variable": fine, "derived_label": k,
+                            "method": f"sampled within {coarse}", "probability": float(pr),
+                        })
+                hierarchy[fine] = nested
+                break
         details["hierarchy"] = {"group_variable": gvar, "derived": hier_vars}
+        if hierarchy_source:
+            details["hierarchy"]["nested"] = dict(hierarchy_source)
     else:
         details["hierarchy"] = "none detected"
     ctx.extra_tables[DERIVATION_FILE] = pd.DataFrame(
@@ -1091,6 +1229,7 @@ def apply(ctx: Any, p: Dict[str, Any]) -> Dict[str, Any]:
         group_var=gvar, groups=generated_groups,
         group_p=np.array([mixp[g] for g in generated_groups]), targets=target_plans,
         anchor=anchor, age_derivations=age_derivations, hierarchy=hierarchy, details=details,
+        age_links=age_links, hierarchy_source=hierarchy_source,
     )
     return details
 
@@ -1182,9 +1321,14 @@ def finalize(ctx: Any, result: Any) -> Any:
                 out[rows] = cats[rng.choice(len(cats), size=rows.size, p=t.p[g])]
         df[t.variable] = out
 
-    def fill(var: str, source: np.ndarray, table: Mapping[str, Tuple[List[str], np.ndarray]]):
+    def fill(
+        var: str, source: np.ndarray, table: Mapping[str, Tuple[List[str], np.ndarray]],
+        skip: Sequence[str] = (),
+    ):
         out = np.empty(n, dtype=object)
         for key, (labels, probs) in table.items():
+            if key in skip:
+                continue
             rows = np.flatnonzero(source == key)
             if not rows.size:
                 continue
@@ -1199,9 +1343,20 @@ def finalize(ctx: Any, result: Any) -> Any:
     if plan.anchor is not None:
         anchor_col = df[plan.anchor].to_numpy(dtype=object)
         for var, table in plan.age_derivations.items():
-            fill(var, anchor_col, table)
-    for var, table in plan.hierarchy.items():
-        fill(var, group_col, table)
+            fill(var, anchor_col, table, skip=plan.age_links.get(var, (None, {}))[1])
+        for var, (ref, per_band) in plan.age_links.items():
+            out = df[var].to_numpy(dtype=object, copy=True)
+            ref_col = df[ref].to_numpy(dtype=object)
+            for a, mapping in per_band.items():
+                rows = np.flatnonzero(anchor_col == a)
+                out[rows] = [mapping[r] for r in ref_col[rows]]
+            df[var] = out
+    # a variable keyed by another derived variable is filled after that variable
+    for var, table in sorted(
+        plan.hierarchy.items(), key=lambda kv: kv[0] in plan.hierarchy_source
+    ):
+        source = plan.hierarchy_source.get(var)
+        fill(var, df[source].to_numpy(dtype=object) if source else group_col, table)
 
     if ctx.ruleset is not None:
         df, repairs = ctx.ruleset.apply(df, rng)

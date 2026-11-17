@@ -552,6 +552,9 @@ class NaPlan:
             self.masks[name] = mask
             e["generated_rows"] = rows
             e["generated_share"] = rows / n
+            if not e["blank"]:
+                # rows that already held the code before the fraction was set count too
+                e["code_share_generated"] = float(np.mean(col == e["code"]))
         return df
 
     def report(self) -> Dict[str, Any]:
@@ -666,6 +669,12 @@ def plan_na_fraction(
         e["code"] = code
         e["blank"] = code is None
         e["target_share"] = uncovered
+        if code is not None:
+            # The share of the code in the whole table: the uncovered share, plus the part
+            # of the covered share that already carries the code (when it has a count).
+            e["code_share_target"] = uncovered + (
+                info["counted"][code] / total if e["code_counted"] else 0.0
+            )
     return plan
 
 
@@ -677,7 +686,7 @@ def _entry(
         "status": status, "reason": reason, "setting": setting, "supplied_by": supplied,
         "covered_share": None, "uncovered_share": None, "target_share": 0.0,
         "generated_rows": 0, "generated_share": 0.0, "code": None, "blank": False,
-        "code_counted": False,
+        "code_counted": False, "code_share_target": None, "code_share_generated": None,
         "n_uncounted_codes": info["n_uncounted"],
         "null_codes": sorted(
             str(v) for v, k in info["kinds"].items() if k != KIND_REAL
