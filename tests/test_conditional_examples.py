@@ -81,3 +81,11 @@ def test_refusal_example_is_refused(monkeypatch):
     monkeypatch.chdir(ROOT)
     with pytest.raises(DisclosureRefusal, match="Nothing was generated"):
         run_recipe(_config("age_sex_by_iccc_refusal_placeholder.yaml"))
+
+
+def test_nccr_example_has_a_sex_target_for_every_group():
+    cfg = load_config(EXAMPLES / "nccr_age_by_iccc_0_19.yaml")
+    cond = cfg["targets"]["conditional"]
+    sex = [t for t in cond["targets"] if t["variable"] == "sex"][0]
+    assert set(sex["by_group"]) == set(cond["group"]["mix"]["values"])
+    assert all(set(row) == {"Female", "Male"} for row in sex["by_group"].values())
