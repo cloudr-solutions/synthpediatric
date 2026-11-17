@@ -11,6 +11,7 @@ Files in this folder:
 * [INSTALL.md](INSTALL.md): detailed install notes and the offline (no internet) recipe.
 * [templates/measure_config.template.yaml](templates/measure_config.template.yaml) and [templates/measure_config.template.json](templates/measure_config.template.json): measure configs to copy and edit.
 * [templates/extract_ctc_example.py](templates/extract_ctc_example.py): an example of writing the flat extract file.
+* [R/README.md](R/README.md): the R heat map script for the Output team (see "Output team" below).
 * Reference docs: [../docs/measure.md](../docs/measure.md) (all measure keys and output formats), [../docs/validation.md](../docs/validation.md), [../docs/cookbook.md](../docs/cookbook.md) (generator recipes).
 
 ## Start here: install
@@ -81,6 +82,10 @@ VERIFIED on macOS: this flow with a stand-in extract, for both templates (YAML w
 3. Write a generator config that points at it, as in `examples/measure/generate_from_measured.yaml` in a clone (`targets.overrides.tables`, `targets.joints.crosstabs`, `targets.survival.specs`). The formats are in [../docs/measure.md](../docs/measure.md) and the recipes in [../docs/cookbook.md](../docs/cookbook.md).
 4. Generate: `synthpediatric run your_config.yaml` (VERIFIED with the example config on a stand-in cohort).
 5. Compare with the real extract, inside CGC: `synthpediatric validate extract_ctc.csv cohort.csv --label v0 --out-dir validate_out` (VERIFIED on a stand-in, Python 3.12 with `[validate]`, 40 s). Only the report files leave CGC. See [../docs/validation.md](../docs/validation.md).
+
+## Output team
+
+* Heat maps of the synthetic cohort against the real one, run in CGC with R: [R/README.md](R/README.md).
 
 ## What to export from CGC
 
