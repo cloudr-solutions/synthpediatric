@@ -25,14 +25,17 @@ RAW_JSON = Path(
 )
 
 
-def test_both_examples_exist_and_normalize():
+def test_examples_exist_and_normalize():
     assert [p.name for p in EXAMPLES] == [
-        "one_registry_all_nine_n2393.yaml", "one_registry_all_nine_n23930.yaml",
+        "nccr_0_19_all_nine_n26106.yaml",
+        "one_registry_all_nine_n2393.yaml",
+        "one_registry_all_nine_n23930.yaml",
     ]
     for path in EXAMPLES:
         cfg = normalize_config(load_config(path))
         assert cfg["source"] == "CTC"
         assert list(cfg["linked"]["children"]) == list(CHILD_ORDER)
+    assert normalize_config(load_config(EXAMPLES[0]))["n"] == 26106
     sizes = {p.stem: normalize_config(load_config(p))["n"] for p in EXAMPLES}
     assert sizes["one_registry_all_nine_n23930"] == 10 * sizes["one_registry_all_nine_n2393"]
 
