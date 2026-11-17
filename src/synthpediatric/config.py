@@ -43,7 +43,7 @@ _LEGACY_KEYS = {"override_marginals": "marginals", "survival": "survival"}
 TOP_LEVEL_KEYS = (
     "name", "metadata", "source", "n", "seed", "profile", "value_mode", "value_modes",
     "no_frequency", "source_policy", "na_fraction", "missingness", "strict", "rules", "cohort",
-    "targets", "oversample", "constraints", "validate", "outputs",
+    "targets", "oversample", "constraints", "validate", "outputs", "linked",
 )
 LEGACY_TOP_LEVEL_KEYS = tuple(_LEGACY_KEYS)
 VALIDATE_KEYS = (
@@ -363,6 +363,10 @@ def normalize_config(raw: Mapping[str, Any]) -> Dict[str, Any]:
         cfg["validate"] = _validate_block(raw["validate"])
     if raw.get("outputs") is not None:
         cfg["outputs"] = _outputs_block(raw["outputs"])
+    if raw.get("linked") is not None:  # written only when given: other configs are unchanged
+        from .linked import normalize_linked
+
+        cfg["linked"] = normalize_linked("linked", raw["linked"], cfg)
     return cfg
 
 

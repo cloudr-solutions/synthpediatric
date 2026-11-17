@@ -193,11 +193,43 @@ def cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_run(args: argparse.Namespace) -> int:
+def _run_linked(args: argparse.Namespace) -> int:
+    """`run` for a config with a ``linked:`` block: all sources, one folder each."""
     from .config import ConfigError
+    from .linked import LinkageError, run_linked, write_linked
+
+    try:
+        bundle = run_linked(args.recipe)
+        outputs = bundle["config"].get("outputs") or {}
+        out_dir = args.out_dir or outputs.get("dir") or "out/linked"
+        fmt = args.format or outputs.get("format") or "csv"
+        archive = args.archive or outputs.get("archive")
+        keep_csv = True if args.keep_csv else outputs.get("keep_csv")
+        path = write_linked(bundle, out_dir, fmt=fmt, archive=archive, keep_csv=keep_csv)
+    except (ConfigError, LinkageError) as exc:
+        raise SystemExit(f"config error: {exc}")
+    print(f"Recipe: {bundle['config'].get('name', '(unnamed)')}")
+    for msg in bundle["warnings"]:
+        print(f"warning: {msg}")
+    for src in bundle["order"]:
+        info = bundle["info"][src]
+        print(
+            f"  {src:<6} {info['rows']:>9,} rows {info['dictionary_columns']:>4} columns "
+            f"{len(info['blank_columns']):>4} blank  [linked table: {src}]"
+        )
+    passed = sum(1 for c in bundle["checks"] if c["passed"])
+    print(f"Linkage checks: {passed} of {len(bundle['checks'])} passed")
+    print(f"Wrote {len(bundle['order'])} folders and linked_manifest.json -> {path}/")
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    from .config import ConfigError, load_config
     from .recipe import run_recipe, write_run
 
     try:
+        if load_config(args.recipe).get("linked") is not None:
+            return _run_linked(args)
         bundle = run_recipe(args.recipe)
     except ConfigError as exc:
         raise SystemExit(f"config error: {exc}")

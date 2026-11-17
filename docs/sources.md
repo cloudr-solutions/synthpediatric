@@ -1,8 +1,11 @@
 # The nine NCCR sources, one table each
 
-synthpediatric generates each NCCR datasource as its own **unlinked, single-source table**.
+synthpediatric generates each NCCR datasource as its own **unlinked, single-source table**
+by default. A config with a `linked:` block generates all nine sources of one cohort, joined
+on `nccrId` (see [Linked runs](#linked-runs) below).
 
-> **Rows cannot be joined across sources.** The published metadata has no participant key
+> **Without a `linked:` block, rows cannot be joined across sources.** The published metadata
+> has no participant key
 > (`dataRequestPatientId` is not a variable in `nccr_instances.ttl`), so nothing ties a row
 > of one table to a row of another, and the sources have different units of record (about
 > 1 row per patient for CTC and ABM, about 190 to 220 rows per covered patient for MCD and
@@ -199,3 +202,109 @@ One row per radiation record or series. The smallest source (5,060 records, 2,65
   published as one label with ` | ` between the parts and are treated as one category. Of the
   324 permissible values, 218 have no count and are never sampled. The CTC consistency rules
   file fails on RO (it names `sex`); RO needs its own rules.
+
+## Linked runs
+
+A config with a `linked:` block (see `examples/linked/` and
+[config-and-rules.md](config-and-rules.md), "Linked runs") generates all nine sources of one
+cohort. CTC is the parent. The other eight are linked to it, so a join across the nine CSVs
+works. The links are generated, not observed: no real patient is behind any key.
+
+| Source | Role | Key columns (first) | Rows |
+|---|---|---|---|
+| CTC | parent | `nccrId`, `tumorRecordNumber` | `n` (tumors) |
+| ABM | child | `nccrId`, `tumorRecordNumber` | `n`, the same pairs as CTC row for row |
+| COG, MCE | child | `nccrId` | `coverage` x patients x `rows_per_patient` |
+| CCDI, RO, PHARM, MCD, MCP | child | `nccrId` | same |
+
+- **`nccrId`**: the primary key in the NCCR dictionaries (RAW-JSON, `Dictionary_Elements[0]`,
+  string, length 64). One per patient, a seeded random 64-character hex string.
+- **`tumorRecordNumber`**: string, length 2 (CTC and ABM only). The 2-character zero-padded
+  rank of the tumor within its patient: `01`, `02`, and so on. `(nccrId, tumorRecordNumber)` is
+  unique in CTC, and ABM carries the same pairs.
+- **Patients**: `round(n / tumors_per_patient)`. Every patient has one tumor and the other
+  tumors are assigned uniformly (default `tumors_per_patient` 1.0881 = 1,614,685 CTC records
+  over 1,483,916 patients).
+- **Children**: `coverage` is the share of patients that have rows, `rows_per_patient` is the
+  mean over the patients that have rows. Defaults come from the record and patient counts of
+  `nccr-metadata/erd.dbml` (packaged as `nccr_linkage_defaults.json`).
+
+| Child | Default coverage | Default rows per patient |
+|---|---|---|
+| COG, MCE | 1 | 1 |
+| CCDI | 0.011088 | 4.2371 |
+| RO | 0.001786 | 1.9094 |
+| PHARM | 0.16788 | 52.2553 |
+| MCD | 0.202428 | 188.6173 |
+| MCP | 0.202473 | 218.8203 |
+
+At `n: 2393` (2,199 patients) MCD and MCP get about 84,000 rows each and PHARM about 19,000.
+Rows are spread over the covered patients with a uniform multinomial, so the counts per
+patient are Poisson-like. Real claims counts are heavier tailed. Totals are exact.
+
+### Columns
+
+Every table has the full dictionary column set of its source: the RAW-JSON names in RAW-JSON
+order, then the columns only the RDF metadata (`nccr_instances.ttl`) has, sorted. `nccrId` is
+first, and `tumorRecordNumber` second in CTC and ABM.
+
+| Source | RAW-JSON | RDF | Only RAW-JSON | Only RDF | Linked table columns |
+|---|---|---|---|---|---|
+| CTC | 114 | 109 | `nccrId`, `referenceId1` to `referenceId4` | none | 114 |
+| ABM | 6 | 5 | `nccrId` | none | 6 |
+| CCDI | 3 | 3 | `nccrId` | `resourceIntersection` | 4 |
+| COG | 8 | 7 | `nccrId` | none | 8 |
+| MCD | 4 | 3 | `nccrId` | none | 4 |
+| MCE | 362 | 363 | `nccrId` | `patientsEnrolledPostIndexCancer`, `patientsEnrolledPriorToIdxCancer` | 364 |
+| MCP | 9 | 8 | `nccrId` | none | 9 |
+| PHARM | 17 | 16 | `nccrId` | none | 17 |
+| RO | 15 | 14 | `nccrId` | none | 15 |
+
+A variable with no value set (or with too few values) cannot be sampled, so its column is
+written **blank**, and the run does not invent a value. Codes, drug names, NDC and RxNorm
+values, ICD codes and free text would look real if made up. The manifest of the table lists
+each blank column under `linked.blank_columns` with a `reason` (`no_value_set`,
+`too_few_values`, `not_in_rdf_metadata`, `no_frequency_nullified`), its `semantic_type` and
+its `field_length` from the dictionary, so "not generated" is distinguishable from "missing".
+The one exception is RO `recordId`, which the dictionary defines as a unique 8-digit number
+per record: it is generated, drawn without replacement.
+
+### Sequence variables
+
+CTC `tumorOrder`, `numberOfPrimaries`, `sequenceNumberCentral` and `recordNumberRecode` are
+set from the patient grouping after the parent run, so they agree with the keys. For a
+patient with k tumors and a tumor of rank j:
+
+| Variable | Value |
+|---|---|
+| `tumorOrder` | `j` (no value set in the metadata) |
+| `numberOfPrimaries` | `k`, or the largest numeric code in the value set that is at most `k` |
+| `recordNumberRecode` | `01` for j = 1, else `02` ("Record number 02 through 98") |
+| `sequenceNumberCentral` | `00` when k = 1; otherwise `01` for j = 1 and `02` for j >= 2 |
+
+The not-applicable fraction leaves these four variables alone (they are protected). A
+constraints file that mentions them is not run again after they are set.
+
+### Limits
+
+- The tables are consistent on keys and on the four sequence variables only. Nothing makes
+  the claims, radiation or pharmacy rows clinically coherent with the tumor of their patient
+  (for example, a diagnosis code that fits the cancer). Each table is still sampled from its
+  own published marginals.
+- Sex and birth cohort are not made equal between the tumors of one patient.
+- Diagnosis-date order across tumors cannot be checked: `yearOfDiagnosis` has no value set.
+- Rows per patient are Poisson-like, not heavy tailed.
+
+## Design notes (linked runs)
+
+- **RAW-JSON and RDF.** RAW-JSON is the upstream dictionary (it has the keys and
+  `referenceId1` to `referenceId4`). The RDF metadata is where the value sets live and it has
+  three variables RAW-JSON lacks, so the full column set is the union of both.
+- **No value set.** Blank columns, not invented values (see Columns).
+- **Sequence variables.** Consistent with the keys (see Sequence variables).
+- **Conditional rule, `source_policy`, `na_fraction`, null repair.** The linked step runs after
+  the parent run, so the `conditional`, `cohort` and `constraints` rules act on the `n` tumor
+  rows as before. `n` counts tumors. The children use the default policy of their own source,
+  with `profile: marginals_only`. Null repair and `na_fraction` run inside each per-source run.
+- **Configs without `linked:`** take the old code path: same canonical config, same hash,
+  same manifest (`unlinked_single_source`).

@@ -121,15 +121,23 @@ def _without(d: DataDictionary, names: List[str]) -> DataDictionary:
     )
 
 
-def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
+def run_recipe(
+    recipe: Union[Mapping[str, Any], str, Path],
+    extra_protected: Optional[Mapping[str, str]] = None,
+) -> Dict[str, Any]:
     """Execute a config (YAML/JSON path or dict) and return a result bundle.
 
     Keys: dictionary, result, data, recipe (as given), config (canonical),
     config_sha256, profile, strict, rules (resolved rule list with per-rule details), warnings,
     oversampling, no_frequency, nullified, input_files.
+
+    ``extra_protected`` (variable -> reason) names variables a caller overwrites later; the
+    not-applicable fraction leaves them alone. Default None: no change.
     """
     raw = load_config(recipe)
     cfg = normalize_config(raw)
+    if "linked" in cfg:
+        raise ConfigError("linked: run this config with run_linked (synthpediatric run does this)")
     resolved = resolve_rules(cfg)
 
     explicit = [k for k in ("no_frequency", "value_mode") if raw.get(k) is not None]
@@ -164,7 +172,7 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
     run_stage(ctx, resolved, "generate")
 
     n, seed = cfg["n"], cfg["seed"]
-    na_plan = _plan_na_fraction(cfg, policy, loaded, ctx, seed)
+    na_plan = _plan_na_fraction(cfg, policy, loaded, ctx, seed, extra_protected)
     # With a `conditional` rule the constraints run last, on the conditional columns.
     ruleset = None if ctx.conditional is not None else ctx.ruleset
     if na_plan is not None and ctx.conditional is None:
@@ -216,7 +224,7 @@ def run_recipe(recipe: Union[Mapping[str, Any], str, Path]) -> Dict[str, Any]:
 
 def _plan_na_fraction(
     cfg: Mapping[str, Any], policy: Optional[Mapping[str, Any]], loaded: DataDictionary,
-    ctx: Context, seed: Optional[int],
+    ctx: Context, seed: Optional[int], extra_protected: Optional[Mapping[str, str]] = None,
 ) -> Optional[NaPlan]:
     """The not-applicable fraction for this run, or None (JSON dictionary, or nothing to do).
 
@@ -234,10 +242,12 @@ def _plan_na_fraction(
     mode = policy["na_fraction"]["value"]
     if mode == "off" and "on" not in variables.values():
         return None
+    protected = protected_variables(ctx)
+    protected.update(extra_protected or {})
     plan = plan_na_fraction(
         loaded, ctx.dictionary, mode=mode, mode_supplied_by=policy["na_fraction"]["supplied_by"],
         min_share=block.get("min_share", DEFAULT_MIN_SHARE), variables=variables,
-        protected=protected_variables(ctx), seed=seed,
+        protected=protected, seed=seed,
     )
     return plan
 
@@ -360,10 +370,10 @@ def write_run(
         "overall_tv_distance": summary["overall_tv_distance_published"],
         "overall_tv_distance_all_columns": summary["overall_tv_distance_all_columns"],
         "fidelity": summary,
-        "table_type": TABLE_TYPE,
-        "table_label": TABLE_LABEL,
+        "table_type": bundle.get("table_type", TABLE_TYPE),
+        "table_label": bundle.get("table_label", TABLE_LABEL),
         "source": bundle.get("source"),
-        "linkage": LINKAGE_STATEMENT,
+        "linkage": bundle.get("linkage", LINKAGE_STATEMENT),
         "generation_report": bundle["report"],
         "source_policy": _policy_for_manifest(bundle.get("source_policy")),
         "coverage": {str(k): int(v) for k, v in cov_counts.items()},
@@ -379,6 +389,8 @@ def write_run(
             },
             "n_applied": 0, "variables": {},
         }
+    if bundle.get("linked") is not None:  # only the tables of a linked run get this key
+        manifest["linked"] = bundle["linked"]
     if archive_info is not None:  # only runs with a zip get this key
         manifest["archive"] = archive_info
     # Per-variable NULL counts, only for scored columns that have any NULL: a run without

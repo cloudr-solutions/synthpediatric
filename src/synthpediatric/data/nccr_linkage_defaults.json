@@ -1,0 +1,14 @@
+{
+  "source": "nccr-metadata erd.dbml, record and patient counts per source",
+  "ctc": {"records": 1614685, "patients": 1483916},
+  "sources": {
+    "ABM": {"records": 1614685, "patients": 1483916},
+    "COG": {"records": 1483916, "patients": 1483916},
+    "MCE": {"records": 1483916, "patients": 1483916},
+    "CCDI": {"records": 69716, "patients": 16453},
+    "RO": {"records": 5060, "patients": 2650},
+    "PHARM": {"records": 13017829, "patients": 249120},
+    "MCD": {"records": 56660564, "patients": 300394},
+    "MCP": {"records": 65745499, "patients": 300461}
+  }
+}

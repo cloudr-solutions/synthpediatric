@@ -102,8 +102,10 @@ NCCR sources: `CTC` (registry), `ABM`, `CCDI`, `COG`, `MCD`, `MCE`, `MCP`, `PHAR
 `--var-value-mode NAME=code` for one variable. For repeat runs, download
 `nccr_instances.ttl` once and pass its path instead of `remote`.
 
-**Each source is an unlinked, single-source table.** Rows cannot be joined across sources:
-the published metadata has no participant key. Every run says which variables it dropped
+**By default each source is an unlinked, single-source table.** Rows cannot be joined across
+sources: the published metadata has no participant key. A config with a `linked:` block
+(see `examples/linked/`) generates all nine sources of one cohort linked on `nccrId`, each
+with its full dictionary column set. Every run says which variables it dropped
 (no value set in the metadata) and which it invented (a value set but no published count),
 and a per-source policy sets a few defaults (MCE blanks its uncounted columns, PHARM reads
 `medicationDispenseDuration` as a code, survival is refused outside CTC). See
