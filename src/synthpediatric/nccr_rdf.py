@@ -125,10 +125,43 @@ def load_graph(sources: Optional[Sequence[Union[str, Path]]] = None):
     rdflib = _require_rdflib()
     if sources is None:
         sources = [NCCR_INSTANCES_URL]
+    key = tuple(_source_key(src) for src in sources)
+    cached = _GRAPH_CACHE.get(key)
+    if cached is not None:
+        return cached
     graph = rdflib.Graph()
     for src in sources:
         graph.parse(str(src), format="turtle")
+    _GRAPH_CACHE[key] = graph
     return graph
+
+
+# Parsed graphs, so the nine runs of a linked cohort parse the same file once. A local file
+# is keyed by path, modification time and size, so an edited file is parsed again.
+_GRAPH_CACHE: Dict[tuple, object] = {}
+
+
+def _source_key(src: Union[str, Path]) -> tuple:
+    path = Path(str(src))
+    try:
+        if path.is_file():
+            st = path.stat()
+            return (str(path), st.st_mtime_ns, st.st_size)
+    except OSError:
+        pass
+    return (str(src),)
+
+
+def value_notations(graph, source_id: str, variable: str) -> Dict[str, str]:
+    """Notation (code) -> label for the value set of one variable, or ``{}`` if it has none."""
+    spec = _build_marginals(graph, "label").get(source_id.upper(), {}).get(variable)
+    if spec is None:
+        return {}
+    return {
+        notation: label
+        for label, entries in spec["meta"].items()
+        for notation, _desc in entries
+    }
 
 
 def list_datasources(graph) -> List[Dict[str, object]]:

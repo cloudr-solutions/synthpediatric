@@ -1,6 +1,7 @@
 """Per-source policy: documented defaults for each NCCR source, overridable in a config.
 
-Every NCCR source is generated as an *unlinked, single-source table*. Three behaviours
+Every NCCR source is generated as an *unlinked, single-source table* unless the config has a
+``linked:`` block (see ``synthpediatric.linked``). Three behaviours
 depend on the source, so they live here, in one table, instead of in the rules:
 
 - ``no_frequency``: what to do with columns that have a value set but no published count
@@ -37,6 +38,25 @@ LINKAGE_STATEMENT = (
     "the published metadata has no participant key (dataRequestPatientId is not a variable "
     "in nccr_instances.ttl), so any join would be invented."
 )
+
+LINKED_TABLE_TYPE = "linked_source"
+LINKED_TABLE_LABEL = "linked table"
+
+
+def linked_statement(source: str, parent: str = "CTC") -> str:
+    """The linkage text of a table written by a linked run."""
+    if source == parent:
+        return (
+            "Linked table (parent). nccrId is a synthetic primary key, one per patient, and "
+            "(nccrId, tumorRecordNumber) is unique per row. The other NCCR sources of this run "
+            "join to it on nccrId; the links are generated, not observed."
+        )
+    extra = " and tumorRecordNumber" if source == "ABM" else ""
+    return (
+        f"Linked table (child of {parent}). Rows join to {parent} on nccrId{extra}. The "
+        "links are generated, not observed: there is no real patient behind any key."
+    )
+
 
 # A "person table": one row stands for one patient's cancer record and the source has a
 # vital status, which is what survival needs. Only the CTC registry table qualifies. ABM is

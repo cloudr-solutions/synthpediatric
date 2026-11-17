@@ -101,6 +101,7 @@ outputs: {dir: out/all_cohort, format: csv}
 # entry of <archive_name>.zip (default name: source id, else config name, else cohort; the entry is
 # <name>.csv). keep_csv: true (default false) also leaves the bare CSV. The reports stay plain files.
 # outputs: {dir: out/upload, format: csv, archive: zip, archive_name: ctc, keep_csv: false}
+# linked: {dictionaries: nccr-metadata/RAW-JSON}   # all nine sources linked on nccrId, see "Linked runs"
 ```
 
 Paths are relative to the working directory. Quote category labels that YAML would read
@@ -357,7 +358,7 @@ a valid config and gives the same hash.
 | `oversampling` | one entry per oversample step: `variable`, `factor`, `factors_applied` (per category), `unmatched_values` (always empty when `strict` is true, because a non-matching label is an error), `proportions_before`, `proportions_after` |
 | `no_frequency` | the mode, and the variables that had no published frequency |
 | `na_fraction` | NCCR sources only: `settings` (mode, who supplied it, `min_share`, per-variable settings), and per variable with a gap: `covered_share`, `uncovered_share`, `status` (`applied` or `skipped`) and `reason`, `code` (null with `blank: true` for a blank), `generated_rows`, `generated_share`, `supplied_by`. See [null-codes.md](null-codes.md) |
-| `table_type`, `table_label`, `source`, `linkage` | `unlinked_single_source`, a short label, the NCCR source id (null for a JSON dictionary), and the statement that rows cannot be joined across sources (no participant key in the metadata) |
+| `table_type`, `table_label`, `source`, `linkage` | `unlinked_single_source` (`linked_source` for a table of a linked run, with a `linked` block: role, key columns, planned and achieved cardinality, `blank_columns`), a short label, the NCCR source id (null for a JSON dictionary), and the statement that rows cannot be joined across sources (no participant key in the metadata) |
 | `generation_report` | what the run skipped and invented, see "Dropped and invented variables" |
 | `source_policy` | the effective policy: for each setting its value and who supplied it, see "Source policy" (null for a JSON dictionary) |
 | `fidelity` | `published_columns`, `invented_columns`, `overall_tv_distance_published`, `overall_tv_distance_all_columns` |
@@ -374,15 +375,48 @@ a valid config and gives the same hash.
 Oversampling still renames the dictionary with a `[reweighted: ...]` tag; the factors and
 effective proportions now live in the manifest.
 
-## Every output is an unlinked, single-source table
+## Unlinked by default, linked with `linked:`
 
-A run generates one NCCR source on its own. **Rows cannot be joined across sources**: the
+A run without a `linked:` block generates one NCCR source on its own. **Rows cannot be joined across sources**: the
 published metadata has no participant key (`dataRequestPatientId` is declared only in the
 ERD tooling, not as a variable in `nccr_instances.ttl`), so row 5 of a PHARM table and row
 5 of an MCP table are unrelated, and a join on a row index or an invented id would give
 wrong results. The manifest says so (`table_type`, `source`, `linkage`), and so does the
 CLI summary line (`[unlinked, single-source table: PHARM]`). Per-source notes are in
 [sources.md](sources.md).
+
+### Linked runs
+
+A `linked:` block (with `source: CTC` and RDF metadata) generates all nine sources of the
+cohort, linked on the primary key `nccrId` (plus `tumorRecordNumber` for CTC and ABM). `n` is
+the number of CTC tumor rows. `synthpediatric run` writes one folder per source and a
+`linked_manifest.json` with the cross-table checks. See `examples/linked/` for a complete
+config and [sources.md](sources.md) ("Linked runs") for the design.
+
+```yaml
+linked:
+  dictionaries: nccr-metadata/RAW-JSON   # required: the RAW-JSON data dictionaries
+  tumors_per_patient: 1.0881             # 1 to 50; patients = round(n / tumors_per_patient)
+  tolerance: 0.05                        # relative tolerance of the coverage and rows checks
+  children:                              # absent: all eight, with the defaults below
+    ABM: {}                              # one row per tumor, takes no options
+    COG: {coverage: 1.0, rows_per_patient: 1.0}
+    PHARM: {coverage: 0.16788, rows_per_patient: 52.2553}
+```
+
+- `coverage` (in (0, 1]) is the share of patients that have rows; `rows_per_patient`
+  (>= 1) is the mean over the patients that have rows. Omitted options take the defaults
+  from the `erd.dbml` counts. When `children` is given, only the listed sources are made.
+- Every table has the full dictionary column set with `nccrId` first. Columns without a
+  value set are blank (listed with a reason in the manifest).
+- The run checks, and fails if any check fails: key columns first, every child `nccrId`
+  in CTC, ABM pairs equal to CTC's, unique CTC pairs, coverage and rows per patient within
+  `tolerance`, all dictionary columns present.
+- Limits: rows per patient are Poisson-like; the tables are not clinically coherent across
+  sources; a constraints file that names `tumorOrder`, `numberOfPrimaries`,
+  `sequenceNumberCentral` or `recordNumberRecode` is not run again after those are set;
+  the not-applicable fraction leaves them alone.
+- `run_recipe` refuses a config with `linked:`; use `run_linked` (the CLI does).
 
 ## Dropped and invented variables
 
@@ -501,7 +535,8 @@ These were left open and are easy to change.
 - **`__default__`.** Works as the fallback survival spec (`DEFAULT_GROUP` in `rules.py`).
 - **Names for the source work.** Config keys `value_modes` (variable -> `label`|`code`) and
   `source_policy` (`no_frequency`, `value_modes`, `survival`); manifest fields `table_type`
-  (`unlinked_single_source`), `table_label`, `source`, `linkage`, `generation_report`,
+  (`unlinked_single_source`, or `linked_source` in a linked run), `table_label`, `source`,
+  `linkage`, `linked`, `generation_report`,
   `source_policy`, `fidelity`, `overall_tv_distance_all_columns`. CLI: `--var-value-mode`,
   `generate --no-frequency`.
 - **Person table.** CTC only (see "Source policy"). Change `PERSON_TABLES` and

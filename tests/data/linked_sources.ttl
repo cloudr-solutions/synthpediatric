@@ -1,0 +1,209 @@
+@prefix nccr: <https://nccrdataplatform.ccdi.cancer.gov/vocab#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix d: <https://nccrdataplatform.ccdi.cancer.gov/datasource/> .
+@prefix v: <https://nccrdataplatform.ccdi.cancer.gov/variable/> .
+@prefix s: <https://nccrdataplatform.ccdi.cancer.gov/valueset/> .
+@prefix c: <https://nccrdataplatform.ccdi.cancer.gov/code/> .
+# Offline fixture for the nine-source smoke test. Invented numbers; it reproduces the
+# quirks of the real metadata: variables with no value set, an all-uncounted source
+# (MCE months), a label that equals the record count (PHARM duration), a label collision
+# (CTC scope9802Public) and a value with no count inside a counted variable (COG).
+
+d:ctc a nccr:DataSource ; nccr:sourceId "CTC" ;
+    nccr:sourceLabel "Consolidated Tumor Case" ; nccr:totalRecordCount 1000 .
+v:ctc-sex a nccr:Variable ; rdfs:label "Sex" ;
+    nccr:sourceColumn "sex" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ;
+    nccr:hasValueSet s:ctc-sex .
+s:ctc-sex a skos:ConceptScheme .
+c:ctc-sex-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-sex ; skos:notation "1" ; skos:prefLabel "Male"@en ; nccr:recordCount 520 .
+c:ctc-sex-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-sex ; skos:notation "2" ; skos:prefLabel "Female"@en ; nccr:recordCount 480 .
+v:ctc-vitalStatusRecode a nccr:Variable ; rdfs:label "Vital status" ;
+    nccr:sourceColumn "vitalStatusRecode" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ;
+    nccr:hasValueSet s:ctc-vitalStatusRecode .
+s:ctc-vitalStatusRecode a skos:ConceptScheme .
+c:ctc-vitalStatusRecode-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-vitalStatusRecode ; skos:notation "1" ; skos:prefLabel "Alive"@en ; nccr:recordCount 700 .
+c:ctc-vitalStatusRecode-4 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-vitalStatusRecode ; skos:notation "4" ; skos:prefLabel "Dead"@en ; nccr:recordCount 300 .
+v:ctc-tumorRecordNumber a nccr:Variable ; rdfs:label "Tumor record number" ;
+    nccr:sourceColumn "tumorRecordNumber" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:ctc .
+v:ctc-scope9802Public a nccr:Variable ; rdfs:label "Scope 9802" ;
+    nccr:sourceColumn "scope9802Public" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ;
+    nccr:hasValueSet s:ctc-scope9802Public .
+s:ctc-scope9802Public a skos:ConceptScheme .
+c:ctc-scope9802Public-0 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-scope9802Public ; skos:notation "0" ; skos:prefLabel "* 0-9"@en ; nccr:recordCount 100 .
+c:ctc-scope9802Public-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-scope9802Public ; skos:notation "1" ; skos:prefLabel "* 0-9"@en ; nccr:recordCount 200 .
+
+d:abm a nccr:DataSource ; nccr:sourceId "ABM" ;
+    nccr:sourceLabel "Area-Based Measures" ; nccr:totalRecordCount 1000 .
+v:abm-rucaC a nccr:Variable ; rdfs:label "RUCA" ;
+    nccr:sourceColumn "rucaC" ; nccr:semanticType "numeric" ;
+    nccr:belongsToSource d:abm ;
+    nccr:hasValueSet s:abm-rucaC .
+s:abm-rucaC a skos:ConceptScheme .
+c:abm-rucaC-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:abm-rucaC ; skos:notation "1" ; skos:prefLabel "Urban"@en ; nccr:recordCount 600 .
+c:abm-rucaC-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:abm-rucaC ; skos:notation "2" ; skos:prefLabel "Rural"@en ; nccr:recordCount 300 .
+c:abm-rucaC-9 a skos:Concept, nccr:CodeValue ; skos:inScheme s:abm-rucaC ; skos:notation "9" ; skos:prefLabel "Missing"@en ; nccr:recordCount 100 .
+v:abm-tumorRecordNumber a nccr:Variable ; rdfs:label "Tumor record number" ;
+    nccr:sourceColumn "tumorRecordNumber" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:abm .
+
+d:ccdi a nccr:DataSource ; nccr:sourceId "CCDI" ;
+    nccr:sourceLabel "CCDI Mappings" ; nccr:totalRecordCount 500 .
+v:ccdi-resourceName a nccr:Variable ; rdfs:label "Resource" ;
+    nccr:sourceColumn "resourceName" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ccdi ;
+    nccr:hasValueSet s:ccdi-resourceName .
+s:ccdi-resourceName a skos:ConceptScheme .
+c:ccdi-resourceName-a a skos:Concept, nccr:CodeValue ; skos:inScheme s:ccdi-resourceName ; skos:notation "a" ; skos:prefLabel "Resource A"@en ; nccr:recordCount 300 .
+c:ccdi-resourceName-b a skos:Concept, nccr:CodeValue ; skos:inScheme s:ccdi-resourceName ; skos:notation "b" ; skos:prefLabel "Resource B"@en ; nccr:recordCount 200 .
+v:ccdi-resourceParticipantId a nccr:Variable ; rdfs:label "Participant id" ;
+    nccr:sourceColumn "resourceParticipantId" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:ccdi .
+
+d:cog a nccr:DataSource ; nccr:sourceId "COG" ;
+    nccr:sourceLabel "Children's Oncology Group" ; nccr:totalRecordCount 900 .
+v:cog-reportedCOGEnrollment a nccr:Variable ; rdfs:label "COG enrollment" ;
+    nccr:sourceColumn "reportedCOGEnrollment" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:cog ;
+    nccr:hasValueSet s:cog-reportedCOGEnrollment .
+s:cog-reportedCOGEnrollment a skos:ConceptScheme .
+c:cog-reportedCOGEnrollment-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:cog-reportedCOGEnrollment ; skos:notation "1" ; skos:prefLabel "Confirmed"@en ; nccr:recordCount 40 .
+c:cog-reportedCOGEnrollment-0 a skos:Concept, nccr:CodeValue ; skos:inScheme s:cog-reportedCOGEnrollment ; skos:notation "0" ; skos:prefLabel "Patient not found at linkage"@en ; nccr:recordCount 860 .
+c:cog-reportedCOGEnrollment-9 a skos:Concept, nccr:CodeValue ; skos:inScheme s:cog-reportedCOGEnrollment ; skos:notation "9" ; skos:prefLabel "Suppressed small cell"@en .
+
+d:mcd a nccr:DataSource ; nccr:sourceId "MCD" ;
+    nccr:sourceLabel "Medical Claims Diagnosis" ; nccr:totalRecordCount 50000 .
+v:mcd-monthsFromIndexDxToDiagnosisCode a nccr:Variable ; rdfs:label "Months to diagnosis" ;
+    nccr:sourceColumn "monthsFromIndexDxToDiagnosisCode" ; nccr:semanticType "numeric" ;
+    nccr:belongsToSource d:mcd ;
+    nccr:hasValueSet s:mcd-monthsFromIndexDxToDiagnosisCode .
+s:mcd-monthsFromIndexDxToDiagnosisCode a skos:ConceptScheme .
+c:mcd-monthsFromIndexDxToDiagnosisCode-0 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mcd-monthsFromIndexDxToDiagnosisCode ; skos:notation "0" ; skos:prefLabel "0"@en ; nccr:recordCount 30000 .
+c:mcd-monthsFromIndexDxToDiagnosisCode-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mcd-monthsFromIndexDxToDiagnosisCode ; skos:notation "1" ; skos:prefLabel "1 to 3"@en ; nccr:recordCount 15000 .
+c:mcd-monthsFromIndexDxToDiagnosisCode-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mcd-monthsFromIndexDxToDiagnosisCode ; skos:notation "2" ; skos:prefLabel "4 to 12"@en ; nccr:recordCount 5000 .
+v:mcd-claimDiagnosisCode a nccr:Variable ; rdfs:label "Diagnosis code" ;
+    nccr:sourceColumn "claimDiagnosisCode" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:mcd .
+
+d:mce a nccr:DataSource ; nccr:sourceId "MCE" ;
+    nccr:sourceLabel "Medical Claims Enrollment" ; nccr:totalRecordCount 900 .
+v:mce-reportedInsuranceEnrollment a nccr:Variable ; rdfs:label "Insurance enrollment" ;
+    nccr:sourceColumn "reportedInsuranceEnrollment" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:mce ;
+    nccr:hasValueSet s:mce-reportedInsuranceEnrollment .
+s:mce-reportedInsuranceEnrollment a skos:ConceptScheme .
+c:mce-reportedInsuranceEnrollment-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-reportedInsuranceEnrollment ; skos:notation "1" ; skos:prefLabel "Yes"@en ; nccr:recordCount 200 .
+c:mce-reportedInsuranceEnrollment-0 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-reportedInsuranceEnrollment ; skos:notation "0" ; skos:prefLabel "Patient not found at linkage"@en ; nccr:recordCount 700 .
+v:mce-enrollMonthPostIndexDx1 a nccr:Variable ; rdfs:label "Month 1 after index" ;
+    nccr:sourceColumn "enrollMonthPostIndexDx1" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:mce ;
+    nccr:hasValueSet s:mce-enrollMonthPostIndexDx1 .
+s:mce-enrollMonthPostIndexDx1 a skos:ConceptScheme .
+c:mce-enrollMonthPostIndexDx1-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx1 ; skos:notation "1" ; skos:prefLabel "Enrolled"@en .
+c:mce-enrollMonthPostIndexDx1-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx1 ; skos:notation "2" ; skos:prefLabel "Not enrolled"@en .
+c:mce-enrollMonthPostIndexDx1-3 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx1 ; skos:notation "3" ; skos:prefLabel "Deceased"@en .
+v:mce-enrollMonthPostIndexDx2 a nccr:Variable ; rdfs:label "Month 2 after index" ;
+    nccr:sourceColumn "enrollMonthPostIndexDx2" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:mce ;
+    nccr:hasValueSet s:mce-enrollMonthPostIndexDx2 .
+s:mce-enrollMonthPostIndexDx2 a skos:ConceptScheme .
+c:mce-enrollMonthPostIndexDx2-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx2 ; skos:notation "1" ; skos:prefLabel "Enrolled"@en .
+c:mce-enrollMonthPostIndexDx2-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx2 ; skos:notation "2" ; skos:prefLabel "Not enrolled"@en .
+c:mce-enrollMonthPostIndexDx2-3 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx2 ; skos:notation "3" ; skos:prefLabel "Deceased"@en .
+v:mce-enrollMonthPostIndexDx3 a nccr:Variable ; rdfs:label "Month 3 after index" ;
+    nccr:sourceColumn "enrollMonthPostIndexDx3" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:mce ;
+    nccr:hasValueSet s:mce-enrollMonthPostIndexDx3 .
+s:mce-enrollMonthPostIndexDx3 a skos:ConceptScheme .
+c:mce-enrollMonthPostIndexDx3-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx3 ; skos:notation "1" ; skos:prefLabel "Enrolled"@en .
+c:mce-enrollMonthPostIndexDx3-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx3 ; skos:notation "2" ; skos:prefLabel "Not enrolled"@en .
+c:mce-enrollMonthPostIndexDx3-3 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mce-enrollMonthPostIndexDx3 ; skos:notation "3" ; skos:prefLabel "Deceased"@en .
+
+d:mcp a nccr:DataSource ; nccr:sourceId "MCP" ;
+    nccr:sourceLabel "Medical Claims Procedure" ; nccr:totalRecordCount 60000 .
+v:mcp-monthsFromIndexDxToProcedure a nccr:Variable ; rdfs:label "Months to procedure" ;
+    nccr:sourceColumn "monthsFromIndexDxToProcedure" ; nccr:semanticType "numeric" ;
+    nccr:belongsToSource d:mcp ;
+    nccr:hasValueSet s:mcp-monthsFromIndexDxToProcedure .
+s:mcp-monthsFromIndexDxToProcedure a skos:ConceptScheme .
+c:mcp-monthsFromIndexDxToProcedure-0 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mcp-monthsFromIndexDxToProcedure ; skos:notation "0" ; skos:prefLabel "0"@en ; nccr:recordCount 40000 .
+c:mcp-monthsFromIndexDxToProcedure-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:mcp-monthsFromIndexDxToProcedure ; skos:notation "1" ; skos:prefLabel "1 to 3"@en ; nccr:recordCount 20000 .
+v:mcp-claimProcedureCode a nccr:Variable ; rdfs:label "Procedure code" ;
+    nccr:sourceColumn "claimProcedureCode" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:mcp .
+v:mcp-claimProcedureMod1 a nccr:Variable ; rdfs:label "Modifier 1" ;
+    nccr:sourceColumn "claimProcedureMod1" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:mcp .
+
+d:pharm a nccr:DataSource ; nccr:sourceId "PHARM" ;
+    nccr:sourceLabel "Pharmacy Claims" ; nccr:totalRecordCount 12000 .
+v:pharm-medicationDispenseDuration a nccr:Variable ; rdfs:label "Dispense duration (days)" ;
+    nccr:sourceColumn "medicationDispenseDuration" ; nccr:semanticType "numeric" ;
+    nccr:belongsToSource d:pharm ;
+    nccr:hasValueSet s:pharm-medicationDispenseDuration .
+s:pharm-medicationDispenseDuration a skos:ConceptScheme .
+c:pharm-medicationDispenseDuration-0 a skos:Concept, nccr:CodeValue ; skos:inScheme s:pharm-medicationDispenseDuration ; skos:notation "0" ; skos:prefLabel "19163"@en ; nccr:recordCount 19163 .
+c:pharm-medicationDispenseDuration-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:pharm-medicationDispenseDuration ; skos:notation "1" ; skos:prefLabel "207907"@en ; nccr:recordCount 207907 .
+c:pharm-medicationDispenseDuration-10 a skos:Concept, nccr:CodeValue ; skos:inScheme s:pharm-medicationDispenseDuration ; skos:notation "10" ; skos:prefLabel "637337"@en ; nccr:recordCount 637337 .
+v:pharm-canmedDrugCategory a nccr:Variable ; rdfs:label "Drug category" ;
+    nccr:sourceColumn "canmedDrugCategory" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:pharm ;
+    nccr:hasValueSet s:pharm-canmedDrugCategory .
+s:pharm-canmedDrugCategory a skos:ConceptScheme .
+c:pharm-canmedDrugCategory-A a skos:Concept, nccr:CodeValue ; skos:inScheme s:pharm-canmedDrugCategory ; skos:notation "A" ; skos:prefLabel "ANTINEOPLASTIC"@en ; nccr:recordCount 9000 .
+c:pharm-canmedDrugCategory-I a skos:Concept, nccr:CodeValue ; skos:inScheme s:pharm-canmedDrugCategory ; skos:notation "I" ; skos:prefLabel "IMMUNOTHERAPY"@en ; nccr:recordCount 3000 .
+v:pharm-ndc11 a nccr:Variable ; rdfs:label "NDC 11" ;
+    nccr:sourceColumn "ndc11" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:pharm .
+
+d:ro a nccr:DataSource ; nccr:sourceId "RO" ;
+    nccr:sourceLabel "Radiation Oncology" ; nccr:totalRecordCount 300 .
+v:ro-radiation_dose a nccr:Variable ; rdfs:label "Prescribed dose" ;
+    nccr:sourceColumn "radiation_dose" ; nccr:semanticType "float" ;
+    nccr:belongsToSource d:ro ;
+    nccr:hasValueSet s:ro-radiation_dose .
+s:ro-radiation_dose a skos:ConceptScheme .
+c:ro-radiation_dose-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ro-radiation_dose ; skos:notation "1" ; skos:prefLabel "0.001 to 10.0"@en ; nccr:recordCount 100 .
+c:ro-radiation_dose-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ro-radiation_dose ; skos:notation "2" ; skos:prefLabel "> 100.0"@en ; nccr:recordCount 150 .
+v:ro-sequenceId a nccr:Variable ; rdfs:label "Sequence" ;
+    nccr:sourceColumn "sequenceId" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:ro ;
+    nccr:hasValueSet s:ro-sequenceId .
+s:ro-sequenceId a skos:ConceptScheme .
+c:ro-sequenceId-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ro-sequenceId ; skos:notation "1" ; skos:prefLabel "First"@en .
+c:ro-sequenceId-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ro-sequenceId ; skos:notation "2" ; skos:prefLabel "Second"@en .
+v:ro-recordId a nccr:Variable ; rdfs:label "Record id" ;
+    nccr:sourceColumn "recordId" ; nccr:semanticType "string" ;
+    nccr:belongsToSource d:ro .
+# Added for the linked run: the four CTC variables that tie to the keys, with the real notations.
+v:ctc-tumorOrder a nccr:Variable ; rdfs:label "Tumor order" ;
+    nccr:sourceColumn "tumorOrder" ; nccr:semanticType "numeric" ;
+    nccr:belongsToSource d:ctc .
+v:ctc-numberOfPrimaries a nccr:Variable ; rdfs:label "Number of primaries" ;
+    nccr:sourceColumn "numberOfPrimaries" ; nccr:semanticType "numeric" ;
+    nccr:belongsToSource d:ctc ;
+    nccr:hasValueSet s:ctc-numberOfPrimaries .
+s:ctc-numberOfPrimaries a skos:ConceptScheme .
+c:ctc-numberOfPrimaries-1 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-numberOfPrimaries ; skos:notation "1" ; skos:prefLabel "1"@en ; nccr:recordCount 700 .
+c:ctc-numberOfPrimaries-2 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-numberOfPrimaries ; skos:notation "2" ; skos:prefLabel "2"@en ; nccr:recordCount 100 .
+c:ctc-numberOfPrimaries-3 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-numberOfPrimaries ; skos:notation "3" ; skos:prefLabel "3"@en ; nccr:recordCount 30 .
+c:ctc-numberOfPrimaries-4 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-numberOfPrimaries ; skos:notation "4" ; skos:prefLabel "4"@en ; nccr:recordCount 10 .
+v:ctc-sequenceNumberCentral a nccr:Variable ; rdfs:label "Sequence number central" ;
+    nccr:sourceColumn "sequenceNumberCentral" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ;
+    nccr:hasValueSet s:ctc-sequenceNumberCentral .
+s:ctc-sequenceNumberCentral a skos:ConceptScheme .
+c:ctc-sequenceNumberCentral-00 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-sequenceNumberCentral ; skos:notation "00" ; skos:prefLabel "One primary in the patient's lifetime"@en ; nccr:recordCount 700 .
+c:ctc-sequenceNumberCentral-01 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-sequenceNumberCentral ; skos:notation "01" ; skos:prefLabel "First of two or more primaries"@en ; nccr:recordCount 150 .
+c:ctc-sequenceNumberCentral-02 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-sequenceNumberCentral ; skos:notation "02" ; skos:prefLabel "Second to fifty-eight primaries"@en ; nccr:recordCount 150 .
+v:ctc-recordNumberRecode a nccr:Variable ; rdfs:label "Record number recode" ;
+    nccr:sourceColumn "recordNumberRecode" ; nccr:semanticType "lookup_value" ;
+    nccr:belongsToSource d:ctc ;
+    nccr:hasValueSet s:ctc-recordNumberRecode .
+s:ctc-recordNumberRecode a skos:ConceptScheme .
+c:ctc-recordNumberRecode-01 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-recordNumberRecode ; skos:notation "01" ; skos:prefLabel "Record number 01 for patient in database"@en ; nccr:recordCount 850 .
+c:ctc-recordNumberRecode-02 a skos:Concept, nccr:CodeValue ; skos:inScheme s:ctc-recordNumberRecode ; skos:notation "02" ; skos:prefLabel "Record number 02 through 98 for patient in database"@en ; nccr:recordCount 150 .

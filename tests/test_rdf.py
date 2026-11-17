@@ -2,7 +2,12 @@
 
 import rdflib
 
-from synthpediatric.nccr_rdf import build_dictionary, list_datasources
+from synthpediatric.nccr_rdf import (
+    build_dictionary,
+    list_datasources,
+    load_graph,
+    value_notations,
+)
 
 TTL = """
 @prefix nccr: <https://nccrdataplatform.ccdi.cancer.gov/vocab#> .
@@ -66,3 +71,17 @@ def test_build_dictionary_marginals():
 def test_value_mode_code():
     d = build_dictionary(_graph(), "CTC", value_mode="code")
     assert set(d.variables["sex"].categories) == {"1", "2"}
+
+
+def test_value_notations():
+    assert value_notations(_graph(), "CTC", "sex") == {"1": "Female", "2": "Male"}
+    assert value_notations(_graph(), "CTC", "no_such_variable") == {}
+
+
+def test_load_graph_is_cached_per_file_version(tmp_path):
+    path = tmp_path / "meta.ttl"
+    path.write_text(TTL)
+    first = load_graph([path])
+    assert load_graph([path]) is first
+    path.write_text(TTL + "\n# edited\n")
+    assert load_graph([path]) is not first

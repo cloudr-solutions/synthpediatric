@@ -315,6 +315,15 @@ offline.
 
 ---
 
+## i. All nine sources linked on nccrId
+
+The recipes above are unlinked: one source per run. To get CTC, ABM, COG, MCE, CCDI, RO,
+PHARM, MCD and MCP for one cohort, with a join key, add a `linked:` block to a CTC config.
+`examples/linked/one_registry_all_nine_n2393.yaml` does this for the conditional cohort of
+[conditional.md](conditional.md) and `..._n23930.yaml` is its 10x variant. Set
+`coverage` and `rows_per_patient` per child to choose how many patients have claims and how
+many rows each has. See [sources.md](sources.md), "Linked runs".
+
 ## Zip the data for upload
 
 To upload the data, put the cohort CSV in a zip. Add `archive: zip` to `outputs` (or pass
