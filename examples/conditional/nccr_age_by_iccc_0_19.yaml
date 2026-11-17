@@ -1,7 +1,9 @@
 # REAL aggregate numbers: childhood cancers, all NCCR registries, ages 0-19, age by ICCC major
 # group. Origin: an aggregate table from NCCR data in CGC. Release: cleared for public use as
 # synthesis inputs by the team lead, 2026-11-16. One cell is below 16 (Retinoblastoma, 15-19), so
-# the minimum-cell override is set explicitly below. The table has no sex.
+# the minimum-cell override is set explicitly below. The age table has no sex; sex comes from a separate table (see the sex target).
+# Cohorts generated from this config before the sex target was added (the V1 n=26106 and V2
+# n=261056 runs) have a flat sex share of about 61% Female in every ICCC group.
 # Test logic: follow the data dictionary (permissible values and published frequencies), then add
 # ONLY the rules taken from this table. No other rules (no consistency rules file) and no input
 # from any other table.
@@ -74,4 +76,23 @@ targets:
           "XI. Other Malignant Epithelial Neoplasms And Malignant Melanomas": {"0-4": 587, "5-9": 1355, "10-14": 5569, "15-19": 17733}
           "XII. Other And Unspecified Malignant Neoplasms": {"0-4": 387, "5-9": 120, "10-14": 205, "15-19": 451}
           "Not classified by SEER or in situ": {"0-4": 1670, "5-9": 1071, "10-14": 1742, "15-19": 4301}
+      # Sex: real shares (percent within tumor type), measured on all CTC records in CGC, all NCCR
+      # registries. Female and Male only. Sex is drawn given the group, independently of age
+      # (no joint age-sex table).
+      - variable: sex
+        basis: percent
+        by_group:
+          "I. Leukemias, Myeloproliferative And Myelodysplastic Diseases": {Female: 43.8, Male: 56.2}
+          "II. Lymphomas and reticuloendothelial neoplasms": {Female: 40.0, Male: 60.0}
+          "III. CNS and Miscellaneous Intracranial and Intraspinal Neoplasms": {Female: 50.6, Male: 49.4}
+          "IV. Neuroblastoma And Other Peripheral Nervous Cell Tumors": {Female: 46.8, Male: 53.2}
+          "V. Retinoblastoma": {Female: 49.5, Male: 50.5}
+          "VI. Renal Tumors": {Female: 53.2, Male: 46.8}
+          "VII. Hepatic Tumors": {Female: 41.1, Male: 58.9}
+          "VIII. Malignant Bone Tumors": {Female: 43.2, Male: 56.8}
+          "IX. Soft Tissue And Other Extraosseous Sarcomas": {Female: 45.1, Male: 54.9}
+          "X. Germ Cell Tumors, Trophoblastic Tumors And Neoplasms Of Gonads": {Female: 37.6, Male: 62.4}
+          "XI. Other Malignant Epithelial Neoplasms And Malignant Melanomas": {Female: 67.1, Male: 32.9}
+          "XII. Other And Unspecified Malignant Neoplasms": {Female: 56.1, Male: 43.9}
+          "Not classified by SEER or in situ": {Female: 55.9, Male: 44.1}
 outputs: {dir: out/conditional/nccr_all, format: csv, archive: zip}

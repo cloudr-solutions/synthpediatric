@@ -17,7 +17,7 @@ Examples (all in `examples/conditional/`, run from the repository root with `run
 | `age_by_iccc_crosstab_placeholder.yaml` | the same, with the numbers in CSV cross-tabs (`crosstabs/`) |
 | `age_sex_by_iccc_refusal_placeholder.yaml` | a table with a cell below 16: the run is refused |
 | `one_registry_age_sex_by_iccc.yaml` | real aggregate table of one state registry, age and sex by ICCC group |
-| `nccr_age_by_iccc_0_19.yaml` | real aggregate table of all NCCR, age by ICCC group |
+| `nccr_age_by_iccc_0_19.yaml` | real aggregate table of all NCCR, age by ICCC group, with a sex-by-ICCC target |
 
 The placeholder files hold invented numbers. The two real configs hold real aggregate numbers
 that the team lead cleared for public use as synthesis inputs on 2026-11-16, and their
