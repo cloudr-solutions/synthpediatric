@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synthpediatric"
-version = "0.0.1"
+version = "0.1.0"
 description = "Generate privacy-safe synthetic pediatric/AYA cancer cohorts from published registry marginals."
 readme = "README.md"
 requires-python = ">=3.9"

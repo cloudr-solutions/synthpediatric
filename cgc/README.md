@@ -58,7 +58,7 @@ To pin the clone, run `git checkout jamboree-2026-11-16` (or a commit sha) insid
 Check the install:
 
 ```bash
-synthpediatric --version          # VERIFIED: prints "synthpediatric 0.0.1"
+synthpediatric --version          # VERIFIED: prints "synthpediatric 0.1.0"
 synthpediatric measure --help     # VERIFIED
 synthpediatric validate --help    # VERIFIED
 ```
